@@ -1,4 +1,5 @@
 const APP_VERSION = "ver1.0.0";
+const BUILD_ID = "20260902-2";
 const STORAGE_KEY = "hafize-tracker-state-v1";
 const FIREBASE_CONFIG_STORAGE_KEY = "hafize-firebase-config-v1";
 
@@ -517,6 +518,14 @@ function handleClick(event) {
 
   if (action === "copy-config-template") {
     copyConfigTemplate();
+  }
+
+  if (action === "save-master-project") {
+    event.preventDefault();
+    const form = actionButton.closest("form");
+    if (form) {
+      saveMasterProject(form);
+    }
   }
 }
 
@@ -1602,6 +1611,7 @@ function renderProjectList() {
   return `
     <section class="panel">
       ${renderMasterProjectForm()}
+      ${renderProjectDebugNotice(projects)}
       ${renderProjectSaveNotice()}
     </section>
 
@@ -1743,11 +1753,22 @@ function renderMasterProjectForm() {
       <label>Project Code<input name="projectCode" required placeholder="Project code" ${disabled ? "disabled" : ""} /></label>
       <label>Status${renderSelect("status", PROJECT_MASTER_STATUSES, "Aktif", disabled ? "disabled" : "")}</label>
       <label>Pelaksanaan${renderSelect("pelaksanaan", PELAKSANAAN_OPTIONS, "Konvensional Dalaman", disabled ? "disabled" : "")}</label>
-      <button class="primary-button" type="submit" ${disabled ? "disabled" : ""}>
+      <button class="primary-button" type="button" data-action="save-master-project" ${disabled ? "disabled" : ""}>
         <i data-lucide="save"></i>
         <span>Save project</span>
       </button>
     </form>
+  `;
+}
+
+function renderProjectDebugNotice(projects) {
+  const email = state.user?.email || state.profile?.email || "not signed in";
+  const role = isAdmin() ? "admin" : state.profile?.role || "no role";
+  return `
+    <div class="inline-notice info" role="status">
+      <i data-lucide="info"></i>
+      <span>Build ${BUILD_ID} | ${state.mode} | ${role} | ${escapeHtml(email)} | ${projects.length} project loaded</span>
+    </div>
   `;
 }
 

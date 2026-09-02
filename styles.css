@@ -578,6 +578,12 @@ textarea:disabled {
   color: var(--red);
 }
 
+.inline-notice.info {
+  border-color: rgba(49, 91, 143, 0.2);
+  background: #eef4fb;
+  color: var(--blue);
+}
+
 .table-section {
   display: grid;
   gap: 12px;
