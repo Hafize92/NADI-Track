@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hafize Project Tracker</title>
+    <meta
+      name="description"
+      content="Shared file, project, and progress tracking workspace for Hafize."
+    />
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" defer></script>
+    <script src="./firebase-config.js?v=20260828-6"></script>
+    <script type="module" src="./app.js?v=20260828-6"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Main navigation">
+        <div class="brand">
+          <div class="brand-mark">H</div>
+          <div>
+            <p class="brand-title">Hafize</p>
+            <p class="brand-subtitle">Shared tracker</p>
+          </div>
+        </div>
+
+        <nav class="nav-list">
+          <button class="nav-item is-active" type="button" data-view="overview">
+            <i data-lucide="layout-dashboard"></i>
+            <span>Overview</span>
+          </button>
+          <button class="nav-item" type="button" data-view="projectList">
+            <i data-lucide="list-tree"></i>
+            <span>List of Projects</span>
+          </button>
+          <button class="nav-item" type="button" data-view="files">
+            <i data-lucide="folder-open"></i>
+            <span>File Tracker</span>
+          </button>
+          <button class="nav-item" type="button" data-view="projects">
+            <i data-lucide="kanban-square"></i>
+            <span>Project Tracker</span>
+          </button>
+          <button class="nav-item" type="button" data-view="progress">
+            <i data-lucide="bar-chart-3"></i>
+            <span>Progress Tracker</span>
+          </button>
+          <button class="nav-item" type="button" data-view="team">
+            <i data-lucide="users-round"></i>
+            <span>Team</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <span class="mode-pill" id="modePill">Local</span>
+          <button class="ghost-button" type="button" data-action="sign-out">
+            <i data-lucide="log-out"></i>
+            <span>Sign out</span>
+          </button>
+        </div>
+      </aside>
+
+      <div class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow" id="viewEyebrow">Workspace</p>
+            <h1 id="viewTitle">Overview</h1>
+          </div>
+          <div class="topbar-actions">
+            <div class="sync-indicator" id="syncIndicator" aria-live="polite">
+              <span class="sync-dot"></span>
+              <span id="syncLabel">Starting</span>
+            </div>
+          </div>
+        </header>
+
+        <main id="appView" class="content" tabindex="-1"></main>
+      </div>
+    </div>
+
+    <div class="floating-trademark">Hafize | ver1.0.0</div>
+  </body>
+</html>
