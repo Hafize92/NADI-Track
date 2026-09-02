@@ -68,11 +68,16 @@ Your configured email signs up as `admin`; later users sign up as `colleague`. T
 
 ## GitHub Pages
 
-This repo includes `.github/workflows/pages.yml`. After pushing to GitHub:
+This site is published from the `gh-pages` branch.
 
 1. Open the GitHub repository.
 2. Go to Settings > Pages.
-3. Set Source to GitHub Actions.
-4. Push to `main`.
+3. Set Source to `Deploy from a branch`.
+4. Set Branch to `gh-pages` and folder to `/ (root)`.
 
-GitHub Actions will publish the static app.
+To update the live site after changes, push `main` to GitHub, then publish the same commit to `gh-pages`:
+
+```powershell
+git push origin main
+git push origin main:gh-pages
+```
