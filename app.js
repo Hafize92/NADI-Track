@@ -1,5 +1,5 @@
 const APP_VERSION = "ver1.0.0";
-const BUILD_ID = "20260902-2";
+const BUILD_ID = "20260902-3";
 const STORAGE_KEY = "hafize-tracker-state-v1";
 const FIREBASE_CONFIG_STORAGE_KEY = "hafize-firebase-config-v1";
 
@@ -152,6 +152,11 @@ const state = {
   users: [],
   filter: "",
   lastProjectSave: null,
+  lastTrackerSave: {
+    file: null,
+    project: null,
+    progress: null
+  },
   sync: {
     label: "Starting",
     tone: "idle",
@@ -527,6 +532,30 @@ function handleClick(event) {
       saveMasterProject(form);
     }
   }
+
+  if (action === "save-file-item") {
+    event.preventDefault();
+    const form = actionButton.closest("form");
+    if (form) {
+      saveFileItem(form);
+    }
+  }
+
+  if (action === "save-project-item") {
+    event.preventDefault();
+    const form = actionButton.closest("form");
+    if (form) {
+      saveProjectItem(form);
+    }
+  }
+
+  if (action === "save-progress-item") {
+    event.preventDefault();
+    const form = actionButton.closest("form");
+    if (form) {
+      saveProgressItem(form);
+    }
+  }
 }
 
 function handleInput(event) {
@@ -774,101 +803,142 @@ async function saveMasterProject(form) {
 }
 
 async function saveFileItem(form) {
-  const formData = new FormData(form);
-  const masterProject =
-    getMasterProjectById(formData.get("projectId")) || resolveMasterProjectFromSearch(formData.get("projectSearch"));
-  const jilid = normalizeJilid(formData.get("jilid"));
-  const cabinet = cleanInput(formData.get("cabinet"));
-  const row = cleanInput(formData.get("row"));
-  const fileName = formatJilidName(masterProject, jilid);
-  const item = {
-    id: String(formData.get("id") || ""),
-    type: "file",
-    ...projectFields(masterProject),
-    jilid,
-    fileName,
-    title: fileName,
-    fileStatus: "Running",
-    cabinet,
-    row,
-    location: formatHardcopyLocation(cabinet, row),
-    notes: cleanInput(formData.get("notes"))
-  };
+  try {
+    const formData = new FormData(form);
+    const masterProject =
+      getMasterProjectById(formData.get("projectId")) || resolveMasterProjectFromSearch(formData.get("projectSearch"));
+    const jilid = normalizeJilid(formData.get("jilid"));
+    const cabinet = cleanInput(formData.get("cabinet"));
+    const row = cleanInput(formData.get("row"));
+    const fileName = formatJilidName(masterProject, jilid);
+    const item = {
+      id: String(formData.get("id") || ""),
+      type: "file",
+      ...projectFields(masterProject),
+      jilid,
+      fileName,
+      title: fileName,
+      fileStatus: "Running",
+      cabinet,
+      row,
+      location: formatHardcopyLocation(cabinet, row),
+      notes: cleanInput(formData.get("notes"))
+    };
 
-  if (!masterProject) {
-    setSync("Project required", "error");
-    return;
+    if (!masterProject) {
+      setTrackerNotice("file", "error", "Select a project first.");
+      setSync("Project required", "error");
+      renderShell();
+      return;
+    }
+
+    if (!cabinet || !row) {
+      setTrackerNotice("file", "error", "Type both Cabinet and Row before saving.");
+      setSync("Cabinet and row required", "error");
+      renderShell();
+      return;
+    }
+
+    setTrackerNotice("file", "saving", `Saving ${fileName}...`);
+    setSync("Saving file", "saving");
+    const savedItem = await saveItem(item);
+    await recalculateFileStatusesForProject(masterProject);
+    setTrackerNotice("file", "success", `Saved ${savedItem.fileName || savedItem.title}.`);
+    form.reset();
+    form.querySelector("[name='id']").value = "";
+    updateMasterProjectSearchControls(form.querySelector("[data-master-project-search]"));
+    renderShell();
+  } catch (error) {
+    console.error(error);
+    setTrackerNotice("file", "error", friendlyFirebaseError(error));
+    setSync(friendlyFirebaseError(error), "error");
+    renderShell();
   }
-
-  if (!cabinet || !row) {
-    setSync("Cabinet and row required", "error");
-    return;
-  }
-
-  await saveItem(item);
-  await recalculateFileStatusesForProject(masterProject);
-  form.reset();
-  form.querySelector("[name='id']").value = "";
-  updateMasterProjectSearchControls(form.querySelector("[data-master-project-search]"));
 }
 
 async function saveProjectItem(form) {
-  const formData = new FormData(form);
-  const masterProject = getMasterProjectById(formData.get("projectId"));
-  const customSubtrack = cleanInput(formData.get("customSubtrack"));
-  const subtrack = customSubtrack || cleanInput(formData.get("subtrack"));
-  const item = {
-    id: String(formData.get("id") || ""),
-    type: "project",
-    ...projectFields(masterProject),
-    subtrack,
-    title: subtrack,
-    status: cleanInput(formData.get("status")) || "Not Started",
-    progress: Number(formData.get("progress") || 0),
-    owner: cleanInput(formData.get("owner")),
-    dueDate: cleanInput(formData.get("dueDate")),
-    notes: cleanInput(formData.get("notes"))
-  };
+  try {
+    const formData = new FormData(form);
+    const masterProject = getMasterProjectById(formData.get("projectId"));
+    const customSubtrack = cleanInput(formData.get("customSubtrack"));
+    const subtrack = customSubtrack || cleanInput(formData.get("subtrack"));
+    const item = {
+      id: String(formData.get("id") || ""),
+      type: "project",
+      ...projectFields(masterProject),
+      subtrack,
+      title: subtrack,
+      status: cleanInput(formData.get("status")) || "Not Started",
+      progress: Number(formData.get("progress") || 0),
+      owner: cleanInput(formData.get("owner")),
+      dueDate: cleanInput(formData.get("dueDate")),
+      notes: cleanInput(formData.get("notes"))
+    };
 
-  if (!masterProject || !item.subtrack) {
-    setSync("Project tracking fields required", "error");
-    return;
+    if (!masterProject || !item.subtrack) {
+      setTrackerNotice("project", "error", "Select a project and sub-tracking before saving.");
+      setSync("Project tracking fields required", "error");
+      renderShell();
+      return;
+    }
+
+    setTrackerNotice("project", "saving", `Saving ${item.subtrack}...`);
+    setSync("Saving project tracking", "saving");
+    const savedItem = await saveItem(item);
+    setTrackerNotice("project", "success", `Saved ${savedItem.subtrack || savedItem.title}.`);
+    form.reset();
+    form.querySelector("[name='id']").value = "";
+    updateMasterProjectControls(form.querySelector("[data-master-project-select]"));
+    renderShell();
+  } catch (error) {
+    console.error(error);
+    setTrackerNotice("project", "error", friendlyFirebaseError(error));
+    setSync(friendlyFirebaseError(error), "error");
+    renderShell();
   }
-
-  await saveItem(item);
-  form.reset();
-  form.querySelector("[name='id']").value = "";
-  updateMasterProjectControls(form.querySelector("[data-master-project-select]"));
 }
 
 async function saveProgressItem(form) {
-  const formData = new FormData(form);
-  const masterProject = getMasterProjectById(formData.get("projectId"));
-  const customSubtrack = cleanInput(formData.get("customSubtrack"));
-  const subtrack = customSubtrack || cleanInput(formData.get("subtrack"));
-  const item = {
-    id: String(formData.get("id") || ""),
-    type: "progress",
-    ...projectFields(masterProject),
-    stage: cleanInput(formData.get("stage")),
-    subtrack,
-    title: subtrack,
-    status: cleanInput(formData.get("status")) || "Not Started",
-    progress: Number(formData.get("progress") || 0),
-    owner: cleanInput(formData.get("owner")),
-    dueDate: cleanInput(formData.get("dueDate")),
-    notes: cleanInput(formData.get("notes"))
-  };
+  try {
+    const formData = new FormData(form);
+    const masterProject = getMasterProjectById(formData.get("projectId"));
+    const customSubtrack = cleanInput(formData.get("customSubtrack"));
+    const subtrack = customSubtrack || cleanInput(formData.get("subtrack"));
+    const item = {
+      id: String(formData.get("id") || ""),
+      type: "progress",
+      ...projectFields(masterProject),
+      stage: cleanInput(formData.get("stage")),
+      subtrack,
+      title: subtrack,
+      status: cleanInput(formData.get("status")) || "Not Started",
+      progress: Number(formData.get("progress") || 0),
+      owner: cleanInput(formData.get("owner")),
+      dueDate: cleanInput(formData.get("dueDate")),
+      notes: cleanInput(formData.get("notes"))
+    };
 
-  if (!masterProject || !item.stage || !item.subtrack) {
-    setSync("Progress tracking fields required", "error");
-    return;
+    if (!masterProject || !item.stage || !item.subtrack) {
+      setTrackerNotice("progress", "error", "Select a project, stage, and sub-tracking before saving.");
+      setSync("Progress tracking fields required", "error");
+      renderShell();
+      return;
+    }
+
+    setTrackerNotice("progress", "saving", `Saving ${item.subtrack}...`);
+    setSync("Saving progress", "saving");
+    const savedItem = await saveItem(item);
+    setTrackerNotice("progress", "success", `Saved ${savedItem.subtrack || savedItem.title}.`);
+    form.reset();
+    form.querySelector("[name='id']").value = "";
+    updateMasterProjectControls(form.querySelector("[data-master-project-select]"));
+    renderShell();
+  } catch (error) {
+    console.error(error);
+    setTrackerNotice("progress", "error", friendlyFirebaseError(error));
+    setSync(friendlyFirebaseError(error), "error");
+    renderShell();
   }
-
-  await saveItem(item);
-  form.reset();
-  form.querySelector("[name='id']").value = "";
-  updateMasterProjectControls(form.querySelector("[data-master-project-select]"));
 }
 
 async function saveItem(item) {
@@ -892,23 +962,88 @@ async function saveItem(item) {
     });
     delete payload.id;
 
+    const itemRef = item.id
+      ? state.sdk.doc(state.db, "trackerItems", item.id)
+      : state.sdk.doc(state.sdk.collection(state.db, "trackerItems"));
+
     if (item.id) {
-      await state.sdk.updateDoc(state.sdk.doc(state.db, "trackerItems", item.id), payload);
+      await state.sdk.updateDoc(itemRef, payload);
     } else {
-      await state.sdk.addDoc(state.sdk.collection(state.db, "trackerItems"), payload);
+      await state.sdk.setDoc(itemRef, payload);
     }
+
+    const savedSnapshot = state.sdk.getDocFromServer
+      ? await state.sdk.getDocFromServer(itemRef)
+      : await state.sdk.getDoc(itemRef);
+
+    if (!savedSnapshot.exists()) {
+      throw new Error(`Firebase did not return saved tracker row ${itemRef.id}.`);
+    }
+
+    const savedItem = normalizeTrackerItem({
+      id: savedSnapshot.id,
+      ...normalizeFirebaseData(savedSnapshot.data())
+    });
+    const mergedItem = normalizeTrackerItem({
+      ...nextItem,
+      ...savedItem,
+      id: itemRef.id,
+      createdAt: savedItem.createdAt || nextItem.createdAt,
+      updatedAt: savedItem.updatedAt || nowIso()
+    });
+    state.items = mergeById(state.items, [mergedItem]);
+    await touchMasterProject(mergedItem.projectId);
+    setSync("Saved", "online");
+    return mergedItem;
+  }
+
+  let savedItem;
+  if (item.id) {
+    savedItem = nextItem;
+    state.items = state.items.map((entry) => (entry.id === item.id ? savedItem : entry));
+  } else {
+    savedItem = { ...nextItem, id: crypto.randomUUID() };
+    state.items = [savedItem, ...state.items];
+  }
+
+  await touchMasterProject(savedItem.projectId);
+  persistLocal();
+  setSync("Saved locally", "local");
+  return savedItem;
+}
+
+async function touchMasterProject(projectId) {
+  const project = getMasterProjectById(projectId);
+  if (!project) {
     return;
   }
 
-  if (item.id) {
-    state.items = state.items.map((entry) => (entry.id === item.id ? nextItem : entry));
-  } else {
-    state.items = [{ ...nextItem, id: crypto.randomUUID() }, ...state.items];
-  }
+  const touch = {
+    updatedAt: nowIso(),
+    updatedBy: state.profile?.displayName || state.user?.email || "Team member",
+    updatedByUid: state.user?.uid || "local"
+  };
 
-  persistLocal();
-  setSync("Saved locally", "local");
-  renderShell();
+  state.masterProjects = state.masterProjects.map((entry) =>
+    entry.id === project.id
+      ? {
+          ...entry,
+          ...touch
+        }
+      : entry
+  );
+
+  if (state.mode === "firebase" && state.db && isAdmin()) {
+    try {
+      await state.sdk.updateDoc(state.sdk.doc(state.db, "masterProjects", project.id), {
+        updatedAt: state.sdk.serverTimestamp(),
+        updatedBy: touch.updatedBy,
+        updatedByUid: touch.updatedByUid
+      });
+    } catch (error) {
+      console.warn("Could not update master project timestamp", error);
+    }
+  }
 }
 
 async function deleteMasterProject(id) {
@@ -934,8 +1069,21 @@ async function deleteMasterProject(id) {
   }
 
   if (state.mode === "firebase" && state.db) {
-    setSync("Deleting project", "saving");
-    await state.sdk.deleteDoc(state.sdk.doc(state.db, "masterProjects", id));
+    try {
+      setSync("Deleting project", "saving");
+      await state.sdk.deleteDoc(state.sdk.doc(state.db, "masterProjects", id));
+      state.masterProjects = state.masterProjects.filter((entry) => entry.id !== id);
+      setSync("Project deleted", "online");
+      renderShell();
+    } catch (error) {
+      console.error(error);
+      state.lastProjectSave = {
+        tone: "error",
+        message: friendlyFirebaseError(error)
+      };
+      setSync(friendlyFirebaseError(error), "error");
+      renderShell();
+    }
     return;
   }
 
@@ -955,7 +1103,8 @@ async function deleteItem(id) {
   if (!item) {
     return;
   }
-  const fileProject = item.type === "file" ? getProjectForItem(item) : null;
+  const itemProject = getProjectForItem(item);
+  const fileProject = item.type === "file" ? itemProject : null;
 
   const confirmed = window.confirm(`Delete "${item.title || item.fileName}"?`);
   if (!confirmed) {
@@ -963,14 +1112,26 @@ async function deleteItem(id) {
   }
 
   if (state.mode === "firebase" && state.db) {
-    setSync("Deleting", "saving");
-    await state.sdk.deleteDoc(state.sdk.doc(state.db, "trackerItems", id));
-    await recalculateFileStatusesForProject(fileProject);
+    try {
+      setSync("Deleting", "saving");
+      await state.sdk.deleteDoc(state.sdk.doc(state.db, "trackerItems", id));
+      state.items = state.items.filter((entry) => entry.id !== id);
+      await recalculateFileStatusesForProject(fileProject);
+      await touchMasterProject(itemProject?.id);
+      setSync("Deleted", "online");
+      renderShell();
+    } catch (error) {
+      console.error(error);
+      setTrackerNotice(item.type, "error", friendlyFirebaseError(error));
+      setSync(friendlyFirebaseError(error), "error");
+      renderShell();
+    }
     return;
   }
 
   state.items = state.items.filter((entry) => entry.id !== id);
   await recalculateFileStatusesForProject(fileProject);
+  await touchMasterProject(itemProject?.id);
   persistLocal();
   setSync("Deleted locally", "local");
   renderShell();
@@ -1000,15 +1161,25 @@ async function recalculateFileStatusesForProject(project) {
     }
 
     const maxJilid = Math.max(...files.map((file) => normalizeJilid(file.jilid)));
+    const recalculatedFiles = files.map((file) => {
+      const nextStatus = normalizeJilid(file.jilid) === maxJilid ? "Running" : "Closed";
+      const statusChanged = normalizeFileStatus(file.fileStatus) !== nextStatus;
+      return {
+        ...file,
+        fileStatus: nextStatus,
+        updatedAt: statusChanged ? nowIso() : file.updatedAt,
+        updatedBy: statusChanged ? state.profile?.displayName || state.user?.email || "Team member" : file.updatedBy,
+        updatedByUid: statusChanged ? state.user?.uid || "local" : file.updatedByUid
+      };
+    });
     const batch = state.sdk.writeBatch(state.db);
     let hasUpdates = false;
 
-    files.forEach((file) => {
-      const nextStatus = normalizeJilid(file.jilid) === maxJilid ? "Running" : "Closed";
-      if (normalizeFileStatus(file.fileStatus) !== nextStatus) {
+    recalculatedFiles.forEach((file, index) => {
+      if (normalizeFileStatus(files[index].fileStatus) !== file.fileStatus) {
         hasUpdates = true;
         batch.update(state.sdk.doc(state.db, "trackerItems", file.id), {
-          fileStatus: nextStatus,
+          fileStatus: file.fileStatus,
           updatedAt: state.sdk.serverTimestamp(),
           updatedBy: state.profile?.displayName || state.user?.email || "Team member",
           updatedByUid: state.user?.uid || "local"
@@ -1019,6 +1190,7 @@ async function recalculateFileStatusesForProject(project) {
     if (hasUpdates) {
       await batch.commit();
     }
+    state.items = mergeById(state.items, recalculatedFiles);
     return;
   }
 
@@ -1048,74 +1220,101 @@ async function recalculateFileStatusesForProject(project) {
   });
 
   persistLocal();
-  renderShell();
 }
 
 async function startSeries(seriesType) {
-  const projectSelect = document.querySelector(`#${seriesType}SeriesProject`);
-  const masterProject = getMasterProjectById(projectSelect?.value);
+  try {
+    const projectSelect = document.querySelector(`#${seriesType}SeriesProject`);
+    const masterProject = getMasterProjectById(projectSelect?.value);
 
-  if (!masterProject) {
-    setSync("Select a master project", "error");
-    projectSelect?.focus();
-    return;
-  }
+    if (!masterProject) {
+      setTrackerNotice(seriesType, "error", "Select a master project before starting a series.");
+      setSync("Select a master project", "error");
+      renderShell();
+      return;
+    }
 
-  const category = masterProject.pelaksanaan;
-  const stageSelect = document.querySelector("#progressSeriesStage");
-  const stage = seriesType === "progress" ? cleanInput(stageSelect?.value) : "";
-  const subtracks =
-    seriesType === "project"
-      ? PROJECT_SERIES[category] || []
-      : PROGRESS_SERIES[category]?.[stage] || [];
+    const category = masterProject.pelaksanaan;
+    const stageSelect = document.querySelector("#progressSeriesStage");
+    const stage = seriesType === "progress" ? cleanInput(stageSelect?.value) : "";
+    const subtracks =
+      seriesType === "project"
+        ? PROJECT_SERIES[category] || []
+        : PROGRESS_SERIES[category]?.[stage] || [];
 
-  if (!subtracks.length) {
-    setSync("No series for this project", "error");
-    return;
-  }
+    if (!subtracks.length) {
+      setTrackerNotice(seriesType, "error", "No series template is available for this project.");
+      setSync("No series for this project", "error");
+      renderShell();
+      return;
+    }
 
-  const now = nowIso();
-  const entries = subtracks.map((subtrack) =>
-    cleanObject({
-      type: seriesType,
-      ...projectFields(masterProject),
-      category,
-      stage: seriesType === "progress" ? stage : "",
-      subtrack,
-      title: subtrack,
-      status: "Not Started",
-      progress: 0,
-      owner: state.profile?.displayName || "",
-      notes: "",
-      createdAt: now,
-      updatedAt: now,
-      updatedBy: state.profile?.displayName || state.user?.email || "Team member",
-      updatedByUid: state.user?.uid || "local"
-    })
-  );
+    const now = nowIso();
+    const entries = subtracks.map((subtrack) =>
+      cleanObject({
+        type: seriesType,
+        ...projectFields(masterProject),
+        category,
+        stage: seriesType === "progress" ? stage : "",
+        subtrack,
+        title: subtrack,
+        status: "Not Started",
+        progress: 0,
+        owner: state.profile?.displayName || "",
+        notes: "",
+        createdAt: now,
+        updatedAt: now,
+        updatedBy: state.profile?.displayName || state.user?.email || "Team member",
+        updatedByUid: state.user?.uid || "local"
+      })
+    );
 
-  if (state.mode === "firebase" && state.db) {
-    setSync("Creating series", "saving");
-    const batch = state.sdk.writeBatch(state.db);
-    entries.forEach((entry) => {
-      const ref = state.sdk.doc(state.sdk.collection(state.db, "trackerItems"));
-      batch.set(ref, {
-        ...entry,
-        createdAt: state.sdk.serverTimestamp(),
-        updatedAt: state.sdk.serverTimestamp()
+    setTrackerNotice(seriesType, "saving", `Creating ${entries.length} rows...`);
+
+    if (state.mode === "firebase" && state.db) {
+      setSync("Creating series", "saving");
+      const batch = state.sdk.writeBatch(state.db);
+      const refs = entries.map(() => state.sdk.doc(state.sdk.collection(state.db, "trackerItems")));
+      entries.forEach((entry, index) => {
+        batch.set(refs[index], {
+          ...entry,
+          createdAt: state.sdk.serverTimestamp(),
+          updatedAt: state.sdk.serverTimestamp()
+        });
       });
-    });
-    await batch.commit();
-  } else {
-    state.items = [
-      ...entries.map((entry) => ({
+      await batch.commit();
+      state.items = mergeById(
+        state.items,
+        entries.map((entry, index) =>
+          normalizeTrackerItem({
+            ...entry,
+            id: refs[index].id
+          })
+        )
+      );
+      await touchMasterProject(masterProject.id);
+      setTrackerNotice(seriesType, "success", `Created ${entries.length} rows for ${masterProject.projectCode}.`);
+      setSync("Series saved", "online");
+      renderShell();
+      return;
+    }
+
+    state.items = mergeById(
+      state.items,
+      entries.map((entry) => ({
         ...entry,
         id: crypto.randomUUID()
-      })),
-      ...state.items
-    ];
+      }))
+    );
+    await touchMasterProject(masterProject.id);
     persistLocal();
+    setTrackerNotice(seriesType, "success", `Created ${entries.length} rows for ${masterProject.projectCode}.`);
     setSync("Series saved locally", "local");
+    renderShell();
+  } catch (error) {
+    console.error(error);
+    setTrackerNotice(seriesType, "error", friendlyFirebaseError(error));
+    setSync(friendlyFirebaseError(error), "error");
     renderShell();
   }
 }
@@ -1446,7 +1645,17 @@ async function loadSampleData() {
     });
 
     await batch.commit();
+    state.masterProjects = mergeById(
+      state.masterProjects.filter((project) => !RETIRED_SAMPLE_PROJECT_IDS.has(project.id)),
+      sampleData.masterProjects.map(normalizeMasterProject)
+    );
+    state.items = mergeById(
+      state.items.filter((item) => !RETIRED_SAMPLE_ITEM_IDS.has(item.id)),
+      sampleData.items.map(normalizeTrackerItem)
+    );
+    state.users = mergeById(state.users, sampleData.users);
     setSync("Sample data loaded", "online");
+    renderShell();
     return;
   }
 
@@ -1633,6 +1842,8 @@ function renderFileTracker() {
         <h2>File Tracker</h2>
       </div>
       ${renderFileForm()}
+      ${renderTrackerDebugNotice("file", files)}
+      ${renderTrackerSaveNotice("file")}
     </section>
 
     <section class="table-section">
@@ -1664,6 +1875,8 @@ function renderProjectTracker() {
         <h2>Add or update project tracking</h2>
       </div>
       ${renderProjectForm()}
+      ${renderTrackerDebugNotice("project", items)}
+      ${renderTrackerSaveNotice("project")}
     </section>
 
     ${renderTrackingBoard(items, "project")}
@@ -1681,6 +1894,8 @@ function renderProgressTracker() {
         <h2>Add or update progress tracking</h2>
       </div>
       ${renderProgressForm()}
+      ${renderTrackerDebugNotice("progress", items)}
+      ${renderTrackerSaveNotice("progress")}
     </section>
 
     ${renderTrackingBoard(items, "progress")}
@@ -1785,6 +2000,38 @@ function renderProjectSaveNotice() {
   `;
 }
 
+function renderTrackerDebugNotice(type, items) {
+  const email = state.user?.email || state.profile?.email || "not signed in";
+  const role = isAdmin() ? "admin" : state.profile?.role || "no role";
+  const label = {
+    file: "file row",
+    project: "project tracker row",
+    progress: "progress tracker row"
+  }[type] || "tracker row";
+  const count = Array.isArray(items) ? items.length : 0;
+
+  return `
+    <div class="inline-notice info" role="status">
+      <i data-lucide="info"></i>
+      <span>Build ${BUILD_ID} | ${state.mode} | ${role} | ${escapeHtml(email)} | ${count} ${escapeHtml(label)}${count === 1 ? "" : "s"} loaded</span>
+    </div>
+  `;
+}
+
+function renderTrackerSaveNotice(type) {
+  const notice = state.lastTrackerSave[type];
+  if (!notice) {
+    return "";
+  }
+
+  return `
+    <div class="inline-notice ${escapeAttribute(notice.tone)}" role="status">
+      <i data-lucide="${notice.tone === "error" ? "circle-alert" : "info"}"></i>
+      <span>${escapeHtml(notice.message)}</span>
+    </div>
+  `;
+}
+
 function renderMasterProjectTable(projects) {
   if (!projects.length) {
     return renderEmptyState("No master projects yet", "Create the first project here before using the trackers.");
@@ -1842,7 +2089,7 @@ function renderMasterProjectRow(project) {
 function renderFileForm() {
   const hasProjects = state.masterProjects.length > 0;
   return `
-    <form class="form-grid" id="fileForm">
+    <form class="form-grid" id="fileForm" novalidate>
       <input type="hidden" name="id" />
       <input type="hidden" name="projectId" />
       <label class="full-span">Project${renderProjectSearchInput("projectSearch", "fileFormProjectSearch")}</label>
@@ -1852,7 +2099,7 @@ function renderFileForm() {
       <label>Cabinet<input name="cabinet" required placeholder="X" /></label>
       <label>Row<input name="row" required placeholder="X" /></label>
       <label class="full-span">Notes<textarea name="notes" rows="3" placeholder="Latest movement or closing remark"></textarea></label>
-      <button class="primary-button" type="submit" ${hasProjects ? "" : "disabled"}>
+      <button class="primary-button" type="button" data-action="save-file-item" ${hasProjects ? "" : "disabled"}>
         <i data-lucide="save"></i>
         <span>Save file</span>
       </button>
@@ -1865,7 +2112,7 @@ function renderProjectForm() {
   const hasProjects = Boolean(selectedProject);
   const projectSubtracks = projectSubtracksForProject(selectedProject);
   return `
-    <form class="form-grid" id="projectForm">
+    <form class="form-grid" id="projectForm" novalidate>
       <input type="hidden" name="id" />
       <label>Project${renderProjectSelect("projectId", "projectFormProject", selectedProject?.id)}</label>
       <div class="linked-project-meta full-span" data-linked-project-meta>${renderLinkedProjectMeta(selectedProject)}</div>
@@ -1876,7 +2123,7 @@ function renderProjectForm() {
       <label>Owner<input name="owner" placeholder="Person responsible" /></label>
       <label>Target date<input name="dueDate" type="date" /></label>
       <label class="full-span">Notes<textarea name="notes" rows="3" placeholder="Latest update"></textarea></label>
-      <button class="primary-button" type="submit" ${hasProjects ? "" : "disabled"}>
+      <button class="primary-button" type="button" data-action="save-project-item" ${hasProjects ? "" : "disabled"}>
         <i data-lucide="save"></i>
         <span>Save tracking</span>
       </button>
@@ -1890,7 +2137,7 @@ function renderProgressForm() {
   const stageNames = progressStagesForProject(selectedProject);
   const progressSubtracks = progressSubtracksForProjectStage(selectedProject, stageNames[0]);
   return `
-    <form class="form-grid" id="progressForm">
+    <form class="form-grid" id="progressForm" novalidate>
       <input type="hidden" name="id" />
       <label>Project${renderProjectSelect("projectId", "progressFormProject", selectedProject?.id)}</label>
       <div class="linked-project-meta full-span" data-linked-project-meta>${renderLinkedProjectMeta(selectedProject)}</div>
@@ -1902,7 +2149,7 @@ function renderProgressForm() {
       <label>Owner<input name="owner" placeholder="Person responsible" /></label>
       <label>Target date<input name="dueDate" type="date" /></label>
       <label class="full-span">Notes<textarea name="notes" rows="3" placeholder="Latest update"></textarea></label>
-      <button class="primary-button" type="submit" ${hasProjects ? "" : "disabled"}>
+      <button class="primary-button" type="button" data-action="save-progress-item" ${hasProjects ? "" : "disabled"}>
         <i data-lucide="save"></i>
         <span>Save progress</span>
       </button>
@@ -2158,12 +2405,18 @@ function renderTrackingCard(item, type) {
         <span><i data-lucide="calendar-days"></i>${escapeHtml(item.dueDate || "No date")}</span>
       </div>
       ${item.notes ? `<p class="notes">${escapeHtml(item.notes)}</p>` : ""}
-      <div class="card-actions">
-        <button class="icon-button" type="button" title="Edit" data-action="edit-item" data-id="${item.id}">
-          <i data-lucide="pencil"></i>
-        </button>
-        ${isAdmin() ? `<button class="icon-button danger" type="button" title="Delete" data-action="delete-item" data-id="${item.id}"><i data-lucide="trash-2"></i></button>` : ""}
-      </div>
+      ${
+        isAdmin()
+          ? `<div class="card-actions">
+              <button class="icon-button" type="button" title="Edit" data-action="edit-item" data-id="${item.id}">
+                <i data-lucide="pencil"></i>
+              </button>
+              <button class="icon-button danger" type="button" title="Delete" data-action="delete-item" data-id="${item.id}">
+                <i data-lucide="trash-2"></i>
+              </button>
+            </div>`
+          : ""
+      }
     </article>
   `;
 }
@@ -2359,6 +2612,10 @@ function setPassiveSync(label, tone = "idle") {
   if (!errorIsFresh) {
     setSync(label, tone);
   }
+}
+
+function setTrackerNotice(type, tone, message) {
+  state.lastTrackerSave[type] = { tone, message };
 }
 
 function reportRuntimeError(error) {
