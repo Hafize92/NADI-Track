@@ -150,6 +150,7 @@ const state = {
   items: [],
   users: [],
   filter: "",
+  lastProjectSave: null,
   sync: {
     label: "Starting",
     tone: "idle",
@@ -563,26 +564,31 @@ function handleSubmit(event) {
   if (form.id === "authForm") {
     event.preventDefault();
     authenticate(form);
+    return;
   }
 
   if (form.id === "firebaseSetupForm") {
     event.preventDefault();
     saveFirebaseConfig(form);
+    return;
   }
 
   if (form.id === "masterProjectForm") {
     event.preventDefault();
     saveMasterProject(form);
+    return;
   }
 
   if (form.id === "fileForm") {
     event.preventDefault();
     saveFileItem(form);
+    return;
   }
 
   if (form.id === "projectForm") {
     event.preventDefault();
     saveProjectItem(form);
+    return;
   }
 
   if (form.id === "progressForm") {
@@ -653,7 +659,12 @@ async function saveMasterProject(form) {
   };
 
   if (!project.projectName || !project.projectCode) {
+    state.lastProjectSave = {
+      tone: "error",
+      message: "Type both Project Name and Project Code before saving."
+    };
     setSync("Project name and code required", "error");
+    renderShell();
     return;
   }
 
@@ -675,6 +686,10 @@ async function saveMasterProject(form) {
     }
 
     try {
+      state.lastProjectSave = {
+        tone: "saving",
+        message: `Saving ${project.projectCode} to Firebase...`
+      };
       setSync("Saving project", "saving");
       const payload = cleanObject({
         ...nextProject,
@@ -684,13 +699,27 @@ async function saveMasterProject(form) {
       delete payload.id;
 
       const projectDocId = project.id || projectDocumentId(project);
-      await state.sdk.setDoc(state.sdk.doc(state.db, "masterProjects", projectDocId), payload, { merge: true });
+      const projectRef = state.sdk.doc(state.db, "masterProjects", projectDocId);
+      await state.sdk.setDoc(projectRef, payload, { merge: true });
+      const savedSnapshot = state.sdk.getDocFromServer
+        ? await state.sdk.getDocFromServer(projectRef)
+        : await state.sdk.getDoc(projectRef);
+
+      if (!savedSnapshot.exists()) {
+        throw new Error(`Firebase did not return saved project ${projectDocId}.`);
+      }
+
       nextProject.id = projectDocId;
+      const savedProject = normalizeMasterProject({
+        id: savedSnapshot.id,
+        ...normalizeFirebaseData(savedSnapshot.data())
+      });
 
       state.masterProjects = mergeById(
         state.masterProjects,
         [
           {
+            ...savedProject,
             ...nextProject,
             id: project.id || nextProject.id,
             createdAt: existing?.createdAt || nowIso(),
@@ -698,13 +727,22 @@ async function saveMasterProject(form) {
           }
         ]
       );
+      state.lastProjectSave = {
+        tone: "success",
+        message: `Saved ${project.projectCode}. If needed, check Firestore Data > masterProjects > ${projectDocId}.`
+      };
       setSync("Project saved", "online");
       form.reset();
       form.querySelector("[name='id']").value = "";
       renderShell();
     } catch (error) {
       console.error(error);
+      state.lastProjectSave = {
+        tone: "error",
+        message: friendlyFirebaseError(error)
+      };
       setSync(friendlyFirebaseError(error), "error");
+      renderShell();
     }
     return;
   }
@@ -716,6 +754,10 @@ async function saveMasterProject(form) {
   }
 
   persistLocal();
+  state.lastProjectSave = {
+    tone: "success",
+    message: `Saved ${project.projectCode} locally.`
+  };
   setSync("Project saved locally", "local");
   form.reset();
   form.querySelector("[name='id']").value = "";
@@ -1560,6 +1602,7 @@ function renderProjectList() {
   return `
     <section class="panel">
       ${renderMasterProjectForm()}
+      ${renderProjectSaveNotice()}
     </section>
 
     <section class="table-section">
@@ -1694,7 +1737,7 @@ function renderTeamView() {
 function renderMasterProjectForm() {
   const disabled = state.mode === "firebase" && !isAdmin();
   return `
-    <form class="form-grid" id="masterProjectForm">
+    <form class="form-grid" id="masterProjectForm" novalidate>
       <input type="hidden" name="id" />
       <label>Project Name<input name="projectName" required placeholder="Project name" ${disabled ? "disabled" : ""} /></label>
       <label>Project Code<input name="projectCode" required placeholder="Project code" ${disabled ? "disabled" : ""} /></label>
@@ -1705,6 +1748,19 @@ function renderMasterProjectForm() {
         <span>Save project</span>
       </button>
     </form>
+  `;
+}
+
+function renderProjectSaveNotice() {
+  if (!state.lastProjectSave) {
+    return "";
+  }
+
+  return `
+    <div class="inline-notice ${escapeAttribute(state.lastProjectSave.tone)}" role="status">
+      <i data-lucide="${state.lastProjectSave.tone === "error" ? "circle-alert" : "info"}"></i>
+      <span>${escapeHtml(state.lastProjectSave.message)}</span>
+    </div>
   `;
 }
 

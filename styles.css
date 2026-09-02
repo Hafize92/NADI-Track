@@ -540,6 +540,44 @@ textarea:disabled {
   gap: 10px;
 }
 
+.inline-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fbfcfc;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.inline-notice svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.inline-notice.success {
+  border-color: rgba(47, 122, 79, 0.24);
+  background: #edf7f1;
+  color: var(--green);
+}
+
+.inline-notice.saving {
+  border-color: rgba(155, 106, 27, 0.24);
+  background: #fff7e6;
+  color: var(--amber);
+}
+
+.inline-notice.error {
+  border-color: rgba(164, 63, 63, 0.24);
+  background: #fff1f1;
+  color: var(--red);
+}
+
 .table-section {
   display: grid;
   gap: 12px;
