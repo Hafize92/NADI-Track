@@ -1,5 +1,5 @@
 const APP_VERSION = "ver1.0.0";
-const BUILD_ID = "20260903-1";
+const BUILD_ID = "20260903-2";
 const STORAGE_KEY = "hafize-tracker-state-v1";
 const FIREBASE_CONFIG_STORAGE_KEY = "hafize-firebase-config-v1";
 

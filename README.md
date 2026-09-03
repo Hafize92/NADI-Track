@@ -41,14 +41,21 @@ Without Firebase config, the app works in local browser storage only. That is us
 3. Copy the Firebase config object.
 4. Enable Authentication with the Email/Password provider.
 5. Create a Cloud Firestore database.
-6. Keep `firebase-config.js` empty in GitHub:
+6. Put the Firebase web config in `firebase-config.js` so the public app can sync automatically:
 
 ```js
-window.HAFIZE_FIREBASE_CONFIG = {};
+window.HAFIZE_FIREBASE_CONFIG = {
+  apiKey: "your-api-key",
+  authDomain: "your-project-id.firebaseapp.com",
+  projectId: "your-project-id",
+  storageBucket: "your-project-id.appspot.com",
+  messagingSenderId: "your-sender-id",
+  appId: "your-app-id"
+};
 window.HAFIZE_ADMIN_EMAILS = [];
 ```
 
-Paste the Firebase config JSON in the app under Team > Firebase connection on each browser that needs to sync. It is stored only in that browser's local storage, not in the public repository.
+For a static GitHub Pages app, the Firebase web config must be public if every browser should sync automatically. Keep admin emails and passwords out of the repository. Restrict the API key in Google Cloud to the GitHub Pages domain and rely on Firestore rules for data protection.
 
 ## Add Firestore rules
 
