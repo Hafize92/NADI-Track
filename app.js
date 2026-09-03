@@ -1,5 +1,5 @@
 const APP_VERSION = "ver1.0.0";
-const BUILD_ID = "20260902-3";
+const BUILD_ID = "20260903-1";
 const STORAGE_KEY = "hafize-tracker-state-v1";
 const FIREBASE_CONFIG_STORAGE_KEY = "hafize-firebase-config-v1";
 
@@ -363,11 +363,7 @@ async function ensureUserProfile(user) {
     return;
   }
 
-  const existingUsers = await state.sdk.getDocs(
-    state.sdk.query(state.sdk.collection(state.db, "users"), state.sdk.limit(1))
-  );
-
-  const role = configuredAdmin || (!getAdminEmails().length && existingUsers.empty) ? "admin" : "colleague";
+  const role = configuredAdmin ? "admin" : "colleague";
   const profile = {
     displayName: user.displayName || user.email?.split("@")[0] || "Team member",
     email: user.email || "",

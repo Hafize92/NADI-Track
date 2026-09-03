@@ -41,30 +41,25 @@ Without Firebase config, the app works in local browser storage only. That is us
 3. Copy the Firebase config object.
 4. Enable Authentication with the Email/Password provider.
 5. Create a Cloud Firestore database.
-6. Replace the empty values in `firebase-config.js`:
+6. Keep `firebase-config.js` empty in GitHub:
 
 ```js
-window.HAFIZE_FIREBASE_CONFIG = {
-  apiKey: "your-api-key",
-  authDomain: "your-project-id.firebaseapp.com",
-  projectId: "your-project-id",
-  storageBucket: "your-project-id.appspot.com",
-  messagingSenderId: "your-sender-id",
-  appId: "your-app-id"
-};
-
-window.HAFIZE_ADMIN_EMAILS = [
-  "your-email@example.com"
-];
+window.HAFIZE_FIREBASE_CONFIG = {};
+window.HAFIZE_ADMIN_EMAILS = [];
 ```
 
-You can also paste the same JSON object in the app under Team > Firebase connection for local testing. For GitHub Pages, editing `firebase-config.js` is better because every co-worker will load the same config.
+Paste the Firebase config JSON in the app under Team > Firebase connection on each browser that needs to sync. It is stored only in that browser's local storage, not in the public repository.
 
 ## Add Firestore rules
 
-Replace `your-email@example.com` in `firebase.rules` with the same admin email from `firebase-config.js`, then publish the rules in Firebase Console > Firestore Database > Rules.
+Publish `firebase.rules` in Firebase Console > Firestore Database > Rules. The rules do not contain a public admin email. Admin access is controlled by the `users/{uid}` document:
 
-Your configured email signs up as `admin`; later users sign up as `colleague`. The admin can change roles and pause accounts in the Team page.
+- `role`: `admin`
+- `status`: `active`
+
+For a fresh Firebase database, sign in once, then set your own `users/{uid}` document to `role = admin` and `status = active` in Firestore Data before inviting colleagues. Later users sign up as `colleague`; the admin can change roles and pause accounts in the Team page.
+
+If a Firebase API key or admin email was ever committed publicly, rotate or restrict the key in Google Cloud API credentials and republish the sanitized Git history.
 
 ## GitHub Pages
 
