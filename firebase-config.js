@@ -1,0 +1,3 @@
+window.HAFIZE_FIREBASE_CONFIG = {};
+
+window.HAFIZE_ADMIN_EMAILS = [];

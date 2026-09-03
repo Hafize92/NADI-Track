@@ -1,0 +1,50 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isActiveUser() {
+      return signedIn() && userProfile().data.status == "active";
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && userProfile().data.role == "admin"
+        && userProfile().data.status == "active";
+    }
+
+    match /users/{userId} {
+      allow read: if isActiveUser() || isSelf(userId);
+      allow create: if isSelf(userId)
+        && request.resource.data.role == "colleague"
+        && request.resource.data.status == "active";
+      allow update: if isAdmin()
+        || (
+          isSelf(userId)
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(["role", "status"])
+        );
+      allow delete: if isAdmin();
+    }
+
+    match /masterProjects/{projectId} {
+      allow read: if isActiveUser() || isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /trackerItems/{itemId} {
+      allow read, create, update: if isActiveUser() || isAdmin();
+      allow delete: if isAdmin();
+    }
+  }
+}
