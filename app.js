@@ -1,5 +1,5 @@
 const APP_VERSION = "ver1.0.0";
-const BUILD_ID = "20260910-2";
+const BUILD_ID = "20260910-3";
 const STORAGE_KEY = "hafize-tracker-state-v1";
 const FIREBASE_CONFIG_STORAGE_KEY = "hafize-firebase-config-v1";
 
@@ -921,6 +921,7 @@ function parseProjectExcelRows(worksheet) {
   return rawRows
     .slice(headerIndex + 1)
     .map((row) => ({
+      bil: row[headerMap.get("bil")] ?? "",
       projectName: row[headerMap.get("projectname")] ?? "",
       projectCode: row[headerMap.get("projectcode")] ?? "",
       status: row[headerMap.get("status")] ?? "",
@@ -959,12 +960,13 @@ function buildProjectImportBatch(rows) {
   };
 
   rows.forEach((row) => {
+    const bil = cleanInput(row.bil);
     const projectName = cleanInput(row.projectName);
     const projectCode = cleanInput(row.projectCode);
     const status = resolveImportedProjectStatus(row.status);
     const pelaksanaan = resolveImportedPelaksanaan(row.pelaksanaan);
 
-    if (!projectName || !projectCode || !status || !pelaksanaan) {
+    if (!bil || !projectName || !projectCode || !status || !pelaksanaan) {
       result.skippedCount += 1;
       return;
     }
@@ -1059,7 +1061,7 @@ function projectCodeKey(value) {
 function resolveImportedProjectStatus(value) {
   const cleanValue = cleanInput(value);
   if (!cleanValue) {
-    return "Aktif";
+    return "";
   }
 
   const lowerValue = cleanValue.toLowerCase();
@@ -1076,7 +1078,7 @@ function resolveImportedProjectStatus(value) {
 function resolveImportedPelaksanaan(value) {
   const cleanValue = cleanInput(value);
   if (!cleanValue) {
-    return "Konvensional Dalaman";
+    return "";
   }
 
   return PELAKSANAAN_OPTIONS.find((option) => option.toLowerCase() === cleanValue.toLowerCase()) || "";
