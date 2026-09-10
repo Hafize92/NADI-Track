@@ -9,7 +9,6 @@ A lightweight shared web app for File Tracker, Project Tracker, and Progress Tra
 - Project Tracker series for Konvensional Dalaman, Konvensional Perunding, and Reka & Bina.
 - Progress Tracker series for Konvensional Dalaman, Konvensional Perunding, and Reka & Bina.
 - Admin/team role controls for you and two colleagues.
-- Sample data covering one admin, two colleagues, all Pelaksanaan types, and the main tracker statuses.
 - Firebase sign-in, real-time Firestore sync, and visible sync status.
 - Fixed bottom-right trademark: `Hafize | ver1.0.0`.
 
@@ -23,7 +22,7 @@ python -m http.server 5173
 
 Then open `http://localhost:5173`.
 
-Without Firebase config, the app works in local browser storage only. That is useful for testing the interface, but it will not sync with co-workers. Fresh local mode starts with sample data so every tab has something to review.
+Without Firebase config, the app works in local browser storage only. That is useful for testing the interface, but it will not sync with co-workers. Fresh local mode starts empty.
 
 ## Workflow
 
@@ -32,7 +31,6 @@ Without Firebase config, the app works in local browser storage only. That is us
 3. Enter `0` for the first Jilid; the app will display the file as the project code only. Later Jilid values display as `CODE Jilid 2`, `CODE Jilid 3`, and so on.
 4. When a newer Jilid is added, earlier Jilid rows for that project become Closed automatically. Update the closed file's Cabinet/Row manually if it moves.
 5. Use Project Tracker and Progress Tracker by selecting from the master project list.
-6. Use Team > Load sample data when you want to refill the sample projects and tracker rows.
 
 ## Add Firebase
 

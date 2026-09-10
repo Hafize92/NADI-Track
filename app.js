@@ -1,5 +1,5 @@
 const APP_VERSION = "ver1.0.0";
-const BUILD_ID = "20260903-2";
+const BUILD_ID = "20260910-1";
 const STORAGE_KEY = "hafize-tracker-state-v1";
 const FIREBASE_CONFIG_STORAGE_KEY = "hafize-firebase-config-v1";
 
@@ -84,56 +84,7 @@ const FILE_STATUSES = ["Running", "Closed"];
 const PROJECT_MASTER_STATUSES = ["Aktif", "Serah"];
 const PELAKSANAAN_OPTIONS = Object.keys(PROJECT_SERIES);
 
-const SAMPLE_USERS = [
-  {
-    id: "local-admin",
-    displayName: "Admin Hafize",
-    email: "admin@hafize.local",
-    role: "admin",
-    status: "active"
-  },
-  {
-    id: "sample-colleague-1",
-    displayName: "Colleague 1",
-    email: "colleague1@hafize.local",
-    role: "colleague",
-    status: "active"
-  },
-  {
-    id: "sample-colleague-2",
-    displayName: "Colleague 2",
-    email: "colleague2@hafize.local",
-    role: "colleague",
-    status: "active"
-  }
-];
-
-const SAMPLE_PROJECTS = [
-  {
-    id: "sample-kd-001",
-    projectName: "Kompleks Serbaguna Dalaman",
-    projectCode: "KD-001",
-    status: "Aktif",
-    pelaksanaan: "Konvensional Dalaman"
-  },
-  {
-    id: "sample-kp-002",
-    projectName: "Naik Taraf Sistem Mekanikal",
-    projectCode: "KP-002",
-    status: "Serah",
-    pelaksanaan: "Konvensional Perunding"
-  },
-  {
-    id: "sample-rb-003",
-    projectName: "Bangunan Pejabat Reka Bina",
-    projectCode: "RB-003",
-    status: "Aktif",
-    pelaksanaan: "Reka & Bina"
-  }
-];
-
-const RETIRED_SAMPLE_PROJECT_IDS = new Set(["sample-xb-004"]);
-const RETIRED_SAMPLE_ITEM_IDS = new Set(["sample-file-xb-004", "sample-file-rb-003"]);
+const SEEDED_RECORD_PREFIX = "sample-";
 
 const state = {
   activeView: "overview",
@@ -307,25 +258,20 @@ function startLocalMode(label) {
   );
 
   if (hasSavedData) {
-    const sampleData = createSampleData(state.profile);
     state.masterProjects = Array.isArray(saved?.masterProjects)
-      ? saved.masterProjects.map(normalizeMasterProject).filter((project) => !RETIRED_SAMPLE_PROJECT_IDS.has(project.id))
+      ? saved.masterProjects.map(normalizeMasterProject).filter((project) => !isSeededRecord(project))
       : [];
     state.items = Array.isArray(saved?.items)
-      ? saved.items.map(normalizeTrackerItem).filter((item) => !RETIRED_SAMPLE_ITEM_IDS.has(item.id))
+      ? saved.items.map(normalizeTrackerItem).filter((item) => !isSeededRecord(item))
       : [];
-    state.users = Array.isArray(saved?.users) && saved.users.length ? saved.users : sampleData.users;
-    if (SAMPLE_PROJECTS.some((project) => !state.masterProjects.some((entry) => entry.id === project.id))) {
-      state.masterProjects = mergeById(state.masterProjects, sampleData.masterProjects);
-      state.items = mergeById(state.items, sampleData.items);
-      state.users = mergeById(state.users, sampleData.users);
-      persistLocal();
-    }
+    state.users = Array.isArray(saved?.users) && saved.users.length
+      ? saved.users.filter((user) => !isSeededRecord(user))
+      : [state.profile];
+    persistLocal();
   } else {
-    const sampleData = createSampleData(state.profile);
-    state.masterProjects = sampleData.masterProjects;
-    state.items = sampleData.items;
-    state.users = sampleData.users;
+    state.masterProjects = [];
+    state.items = [];
+    state.users = [state.profile];
     persistLocal();
   }
 
@@ -400,10 +346,13 @@ function subscribeToData() {
     itemQuery,
     { includeMetadataChanges: true },
     (snapshot) => {
-      state.items = snapshot.docs.map((docSnapshot) => ({
+      const docs = snapshot.docs.map((docSnapshot) => ({
         id: docSnapshot.id,
         ...normalizeFirebaseData(docSnapshot.data())
-      })).map(normalizeTrackerItem);
+      }));
+      const seededIds = docs.filter(isSeededRecord).map((doc) => doc.id);
+      state.items = docs.filter((doc) => !isSeededRecord(doc)).map(normalizeTrackerItem);
+      deleteSeededDocuments("trackerItems", seededIds);
 
       setPassiveSync(snapshot.metadata.hasPendingWrites ? "Saving" : "Synced", snapshot.metadata.hasPendingWrites ? "saving" : "online");
       renderView();
@@ -418,10 +367,13 @@ function subscribeToData() {
     masterProjectQuery,
     { includeMetadataChanges: true },
     (snapshot) => {
-      state.masterProjects = snapshot.docs.map((docSnapshot) => ({
+      const docs = snapshot.docs.map((docSnapshot) => ({
         id: docSnapshot.id,
         ...normalizeFirebaseData(docSnapshot.data())
-      })).map(normalizeMasterProject);
+      }));
+      const seededIds = docs.filter(isSeededRecord).map((doc) => doc.id);
+      state.masterProjects = docs.filter((doc) => !isSeededRecord(doc)).map(normalizeMasterProject);
+      deleteSeededDocuments("masterProjects", seededIds);
 
       setPassiveSync(snapshot.metadata.hasPendingWrites ? "Saving" : "Synced", snapshot.metadata.hasPendingWrites ? "saving" : "online");
       renderShell();
@@ -439,7 +391,7 @@ function subscribeToData() {
       state.users = snapshot.docs.map((docSnapshot) => ({
         id: docSnapshot.id,
         ...normalizeFirebaseData(docSnapshot.data())
-      }));
+      })).filter((member) => !isSeededRecord(member));
 
       const currentProfile = state.users.find((member) => member.id === state.user?.uid);
       if (currentProfile) {
@@ -511,10 +463,6 @@ function handleClick(event) {
 
   if (action === "clear-local-data") {
     clearLocalData();
-  }
-
-  if (action === "load-sample-data") {
-    loadSampleData();
   }
 
   if (action === "copy-config-template") {
@@ -1600,75 +1548,6 @@ function clearLocalData() {
   renderShell();
 }
 
-async function loadSampleData() {
-  if (!isAdmin()) {
-    setSync("Admin only", "error");
-    return;
-  }
-
-  const sampleData = createSampleData(state.profile);
-
-  if (state.mode === "firebase" && state.db) {
-    setSync("Loading samples", "saving");
-    const batch = state.sdk.writeBatch(state.db);
-
-    sampleData.masterProjects.forEach((project) => {
-      const payload = cleanObject({
-        ...project,
-        createdAt: state.sdk.serverTimestamp(),
-        updatedAt: state.sdk.serverTimestamp()
-      });
-      delete payload.id;
-      batch.set(state.sdk.doc(state.db, "masterProjects", project.id), payload, { merge: true });
-    });
-
-    sampleData.items.forEach((item) => {
-      const payload = cleanObject({
-        ...item,
-        createdAt: state.sdk.serverTimestamp(),
-        updatedAt: state.sdk.serverTimestamp()
-      });
-      delete payload.id;
-      batch.set(state.sdk.doc(state.db, "trackerItems", item.id), payload, { merge: true });
-    });
-
-    RETIRED_SAMPLE_PROJECT_IDS.forEach((id) => {
-      batch.delete(state.sdk.doc(state.db, "masterProjects", id));
-    });
-
-    RETIRED_SAMPLE_ITEM_IDS.forEach((id) => {
-      batch.delete(state.sdk.doc(state.db, "trackerItems", id));
-    });
-
-    await batch.commit();
-    state.masterProjects = mergeById(
-      state.masterProjects.filter((project) => !RETIRED_SAMPLE_PROJECT_IDS.has(project.id)),
-      sampleData.masterProjects.map(normalizeMasterProject)
-    );
-    state.items = mergeById(
-      state.items.filter((item) => !RETIRED_SAMPLE_ITEM_IDS.has(item.id)),
-      sampleData.items.map(normalizeTrackerItem)
-    );
-    state.users = mergeById(state.users, sampleData.users);
-    setSync("Sample data loaded", "online");
-    renderShell();
-    return;
-  }
-
-  state.masterProjects = mergeById(
-    state.masterProjects.filter((project) => !RETIRED_SAMPLE_PROJECT_IDS.has(project.id)),
-    sampleData.masterProjects
-  );
-  state.items = mergeById(
-    state.items.filter((item) => !RETIRED_SAMPLE_ITEM_IDS.has(item.id)),
-    sampleData.items
-  );
-  state.users = mergeById(state.users, sampleData.users);
-  persistLocal();
-  setSync("Sample data loaded", "local");
-  renderShell();
-}
-
 async function copyConfigTemplate() {
   const template = JSON.stringify(
     {
@@ -1912,16 +1791,6 @@ function renderTeamView() {
         <div class="team-list">
           ${state.users.map(renderTeamMember).join("")}
         </div>
-        ${
-          isAdmin()
-            ? `<div class="button-row team-actions">
-                <button class="secondary-button" type="button" data-action="load-sample-data">
-                  <i data-lucide="database-zap"></i>
-                  <span>Load sample data</span>
-                </button>
-              </div>`
-            : ""
-        }
       </div>
 
       <div class="panel">
@@ -2883,195 +2752,30 @@ function nextJilidForProject(project) {
   return nextJilidNumber(maxJilid);
 }
 
-function createSampleData(profile = state.profile) {
-  const dateTime = (offsetDays, hour = 9) => {
-    const date = new Date();
-    date.setDate(date.getDate() + offsetDays);
-    date.setHours(hour, 0, 0, 0);
-    return date.toISOString();
-  };
-  const dateOnly = (offsetDays) => dateTime(offsetDays).slice(0, 10);
-  const adminUser = {
-    ...SAMPLE_USERS[0],
-    id: profile?.id || state.user?.uid || SAMPLE_USERS[0].id,
-    displayName: profile?.displayName || SAMPLE_USERS[0].displayName,
-    email: profile?.email || SAMPLE_USERS[0].email
-  };
-  const users = [adminUser, ...SAMPLE_USERS.slice(1)].map((user, index) => ({
-    ...user,
-    createdAt: dateTime(-18 + index),
-    lastSeenAt: dateTime(-index)
-  }));
-  const owner = (index) => users[index]?.displayName || "Team member";
-  const ownerId = (index) => users[index]?.id || "local";
-  const masterProjects = SAMPLE_PROJECTS.map((project, index) => ({
-    ...project,
-    title: project.projectName,
-    createdAt: dateTime(-18 + index),
-    updatedAt: dateTime(-4 + index),
-    updatedBy: owner(0),
-    updatedByUid: ownerId(0)
-  }));
-  const projectById = Object.fromEntries(masterProjects.map((project) => [project.id, project]));
-  const withProject = (projectId, ownerIndex, updatedOffset, data) =>
-    cleanObject({
-      ...data,
-      ...projectFields(projectById[projectId]),
-      owner: data.type === "file" ? undefined : owner(ownerIndex),
-      createdAt: dateTime(updatedOffset - 5),
-      updatedAt: dateTime(updatedOffset),
-      updatedBy: owner(ownerIndex),
-      updatedByUid: ownerId(ownerIndex)
-    });
-
-  const items = [
-    withProject("sample-kd-001", 0, -1, {
-      id: "sample-file-kd-001",
-      type: "file",
-      jilid: 0,
-      fileName: "KD-001",
-      title: "KD-001",
-      fileStatus: "Running",
-      cabinet: "A",
-      row: "1",
-      location: "Cabinet A , Row 1",
-      notes: "Sample hardcopy file at active location."
-    }),
-    withProject("sample-kp-002", 1, -2, {
-      id: "sample-file-kp-002",
-      type: "file",
-      jilid: 0,
-      fileName: "KP-002",
-      title: "KP-002",
-      fileStatus: "Closed",
-      cabinet: "B",
-      row: "3",
-      location: "Cabinet B , Row 3",
-      notes: "Sample closed base Jilid."
-    }),
-    withProject("sample-kp-002", 1, -1, {
-      id: "sample-file-kp-002-jilid-2",
-      type: "file",
-      jilid: 2,
-      fileName: "KP-002 Jilid 2",
-      title: "KP-002 Jilid 2",
-      fileStatus: "Running",
-      cabinet: "B",
-      row: "4",
-      location: "Cabinet B , Row 4",
-      notes: "Sample next Jilid after the base file was closed."
-    }),
-    withProject("sample-rb-003", 2, 0, {
-      id: "sample-file-rb-003-base",
-      type: "file",
-      jilid: 0,
-      fileName: "RB-003",
-      title: "RB-003",
-      fileStatus: "Closed",
-      cabinet: "C",
-      row: "5",
-      location: "Cabinet C , Row 5",
-      notes: "Sample first Jilid already closed after newer Jilid was opened."
-    }),
-    withProject("sample-rb-003", 2, 0, {
-      id: "sample-file-rb-003-jilid-2",
-      type: "file",
-      jilid: 2,
-      fileName: "RB-003 Jilid 2",
-      title: "RB-003 Jilid 2",
-      fileStatus: "Closed",
-      cabinet: "C",
-      row: "6",
-      location: "Cabinet C , Row 6",
-      notes: "Sample middle Jilid closed because Jilid 3 is the latest."
-    }),
-    withProject("sample-rb-003", 2, 0, {
-      id: "sample-file-rb-003-jilid-3",
-      type: "file",
-      jilid: 3,
-      fileName: "RB-003 Jilid 3",
-      title: "RB-003 Jilid 3",
-      fileStatus: "Running",
-      cabinet: "C",
-      row: "7",
-      location: "Cabinet C , Row 7",
-      notes: "Sample active Reka & Bina Jilid."
-    }),
-    withProject("sample-kd-001", 1, -1, {
-      id: "sample-project-kd-001",
-      type: "project",
-      subtrack: "Semakan skop dalaman",
-      title: "Semakan skop dalaman",
-      status: "In Progress",
-      progress: 45,
-      dueDate: dateOnly(7),
-      notes: "Scope review is moving through internal comments."
-    }),
-    withProject("sample-kp-002", 0, -3, {
-      id: "sample-project-kp-002",
-      type: "project",
-      subtrack: "Pengesahan akhir",
-      title: "Pengesahan akhir",
-      status: "Completed",
-      progress: 100,
-      dueDate: dateOnly(-2),
-      notes: "Serah sample shows a completed project route."
-    }),
-    withProject("sample-rb-003", 2, 0, {
-      id: "sample-project-rb-003",
-      type: "project",
-      subtrack: "Cadangan teknikal",
-      title: "Cadangan teknikal",
-      status: "Pending Review",
-      progress: 60,
-      dueDate: dateOnly(10),
-      notes: "Technical proposal is ready for review."
-    }),
-    withProject("sample-kd-001", 0, -1, {
-      id: "sample-progress-kd-001",
-      type: "progress",
-      stage: "Rundingan 20A",
-      subtrack: "Jadual rundingan",
-      title: "Jadual rundingan",
-      status: "In Progress",
-      progress: 50,
-      dueDate: dateOnly(4),
-      notes: "Rundingan 20A schedule is being coordinated."
-    }),
-    withProject("sample-kp-002", 1, -2, {
-      id: "sample-progress-kp-002",
-      type: "progress",
-      stage: "Pengesyoran Perunding",
-      subtrack: "Pengesyoran jawatankuasa",
-      title: "Pengesyoran jawatankuasa",
-      status: "Completed",
-      progress: 100,
-      dueDate: dateOnly(-3),
-      notes: "Committee recommendation completed for sample project."
-    }),
-    withProject("sample-rb-003", 2, 0, {
-      id: "sample-progress-rb-003",
-      type: "progress",
-      stage: "Pelaksanaan Reka & Bina",
-      subtrack: "Kemajuan pembinaan",
-      title: "Kemajuan pembinaan",
-      status: "Blocked",
-      progress: 35,
-      dueDate: dateOnly(2),
-      notes: "Blocked sample row for quick attention testing."
-    })
-  ];
-
-  return {
-    users,
-    masterProjects,
-    items
-  };
-}
-
 function mergeById(current, incoming) {
   const incomingIds = new Set(incoming.map((entry) => entry.id));
   return [...incoming, ...current.filter((entry) => !incomingIds.has(entry.id))];
+}
+
+function isSeededRecord(entry) {
+  return String(entry?.id || "").startsWith(SEEDED_RECORD_PREFIX);
+}
+
+async function deleteSeededDocuments(collectionName, ids) {
+  if (!ids.length || state.mode !== "firebase" || !state.db || !isAdmin()) {
+    return;
+  }
+
+  try {
+    const batch = state.sdk.writeBatch(state.db);
+    ids.forEach((id) => {
+      batch.delete(state.sdk.doc(state.db, collectionName, id));
+    });
+    await batch.commit();
+    setPassiveSync("Removed old sample data", "online");
+  } catch (error) {
+    console.error(error);
+  }
 }
 
 function sortedMasterProjects() {
