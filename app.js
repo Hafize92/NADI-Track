@@ -1,5 +1,5 @@
 const APP_VERSION = "ver1.0.0";
-const BUILD_ID = "20260910-1";
+const BUILD_ID = "20260910-2";
 const STORAGE_KEY = "hafize-tracker-state-v1";
 const FIREBASE_CONFIG_STORAGE_KEY = "hafize-firebase-config-v1";
 
@@ -83,6 +83,8 @@ const TRACKING_STATUSES = ["Not Started", "In Progress", "Pending Review", "Comp
 const FILE_STATUSES = ["Running", "Closed"];
 const PROJECT_MASTER_STATUSES = ["Aktif", "Serah"];
 const PELAKSANAAN_OPTIONS = Object.keys(PROJECT_SERIES);
+const PROJECT_EXCEL_HEADERS = ["Bil", "Project Name", "Project Code", "Status", "Pelaksanaan"];
+const PROJECT_EXCEL_SHEET_NAME = "List of Projects";
 
 const SEEDED_RECORD_PREFIX = "sample-";
 
@@ -469,6 +471,16 @@ function handleClick(event) {
     copyConfigTemplate();
   }
 
+  if (action === "download-project-excel") {
+    event.preventDefault();
+    downloadProjectExcel();
+  }
+
+  if (action === "choose-project-excel") {
+    event.preventDefault();
+    chooseProjectExcelFile();
+  }
+
   if (action === "save-master-project") {
     event.preventDefault();
     const form = actionButton.closest("form");
@@ -510,6 +522,12 @@ function handleInput(event) {
 }
 
 function handleChange(event) {
+  const projectExcelUpload = event.target.closest("[data-project-excel-upload]");
+  if (projectExcelUpload) {
+    importProjectExcel(projectExcelUpload);
+    return;
+  }
+
   const projectSearch = event.target.closest("[data-master-project-search]");
   if (projectSearch) {
     updateMasterProjectSearchControls(projectSearch);
@@ -637,7 +655,7 @@ async function saveMasterProject(form) {
     projectName: cleanInput(formData.get("projectName")),
     projectCode: cleanInput(formData.get("projectCode")),
     status: normalizeProjectStatus(formData.get("status")),
-    pelaksanaan: cleanInput(formData.get("pelaksanaan")) || "Konvensional Dalaman"
+    pelaksanaan: normalizePelaksanaan(formData.get("pelaksanaan"))
   };
 
   if (!project.projectName || !project.projectCode) {
@@ -744,6 +762,324 @@ async function saveMasterProject(form) {
   form.reset();
   form.querySelector("[name='id']").value = "";
   renderShell();
+}
+
+function downloadProjectExcel() {
+  if (!ensureExcelLibrary()) {
+    return;
+  }
+
+  const rows = sortedMasterProjects().map((project, index) => [
+    index + 1,
+    project.projectName || "",
+    project.projectCode || "",
+    normalizeProjectStatus(project.status),
+    normalizePelaksanaan(project.pelaksanaan)
+  ]);
+  const worksheet = window.XLSX.utils.aoa_to_sheet([PROJECT_EXCEL_HEADERS, ...rows]);
+  worksheet["!cols"] = [
+    { wch: 8 },
+    { wch: 64 },
+    { wch: 20 },
+    { wch: 14 },
+    { wch: 30 }
+  ];
+  const workbook = window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(workbook, worksheet, PROJECT_EXCEL_SHEET_NAME);
+  window.XLSX.writeFile(workbook, projectExcelFileName());
+  setSync("Excel downloaded", state.mode === "firebase" ? "online" : "local");
+}
+
+function chooseProjectExcelFile() {
+  if (!isAdmin()) {
+    state.lastProjectSave = {
+      tone: "error",
+      message: "Only admin can upload project Excel."
+    };
+    setSync("Admin only", "error");
+    renderShell();
+    return;
+  }
+
+  const input = document.querySelector("[data-project-excel-upload]");
+  if (!input) {
+    return;
+  }
+
+  input.value = "";
+  input.click();
+}
+
+async function importProjectExcel(input) {
+  const file = input.files?.[0];
+  if (!file) {
+    return;
+  }
+
+  if (!isAdmin()) {
+    state.lastProjectSave = {
+      tone: "error",
+      message: "Only admin can upload project Excel."
+    };
+    setSync("Admin only", "error");
+    input.value = "";
+    renderShell();
+    return;
+  }
+
+  if (!ensureExcelLibrary()) {
+    input.value = "";
+    return;
+  }
+
+  try {
+    setSync("Reading Excel", "saving");
+    const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = sheetName ? workbook.Sheets[sheetName] : null;
+
+    if (!worksheet) {
+      throw new Error("Excel file has no worksheet.");
+    }
+
+    const rows = parseProjectExcelRows(worksheet);
+    const importBatch = buildProjectImportBatch(rows);
+
+    if (!importBatch.projects.length) {
+      state.lastProjectSave = {
+        tone: "info",
+        message: projectImportSummary(importBatch, "No new projects imported.")
+      };
+      setSync("No new projects", state.mode === "firebase" ? "online" : "local");
+      input.value = "";
+      renderShell();
+      return;
+    }
+
+    state.lastProjectSave = {
+      tone: "saving",
+      message: `Importing ${importBatch.projects.length} project${importBatch.projects.length === 1 ? "" : "s"} from Excel...`
+    };
+    renderShell();
+
+    await saveImportedMasterProjects(importBatch.projects);
+    state.lastProjectSave = {
+      tone: "success",
+      message: projectImportSummary(importBatch, `Imported ${importBatch.projects.length} project${importBatch.projects.length === 1 ? "" : "s"}.`)
+    };
+    setSync("Projects imported", state.mode === "firebase" ? "online" : "local");
+    input.value = "";
+    renderShell();
+  } catch (error) {
+    console.error(error);
+    state.lastProjectSave = {
+      tone: "error",
+      message: friendlyFirebaseError(error)
+    };
+    setSync(friendlyFirebaseError(error), "error");
+    input.value = "";
+    renderShell();
+  }
+}
+
+function ensureExcelLibrary() {
+  if (window.XLSX) {
+    return true;
+  }
+
+  state.lastProjectSave = {
+    tone: "error",
+    message: "Excel tool is still loading. Refresh the page and try again."
+  };
+  setSync("Excel unavailable", "error");
+  renderShell();
+  return false;
+}
+
+function parseProjectExcelRows(worksheet) {
+  const rawRows = window.XLSX.utils.sheet_to_json(worksheet, {
+    header: 1,
+    defval: "",
+    blankrows: false
+  });
+
+  if (!rawRows.length) {
+    return [];
+  }
+
+  const requiredHeaders = PROJECT_EXCEL_HEADERS.map(normalizeExcelHeader);
+  const headerIndex = rawRows.findIndex((row) => {
+    const headerMap = mapExcelHeaders(row);
+    return requiredHeaders.every((header) => headerMap.has(header));
+  });
+
+  if (headerIndex === -1) {
+    throw new Error("Excel must use columns: Bil, Project Name, Project Code, Status, Pelaksanaan.");
+  }
+
+  const headerMap = mapExcelHeaders(rawRows[headerIndex]);
+  return rawRows
+    .slice(headerIndex + 1)
+    .map((row) => ({
+      projectName: row[headerMap.get("projectname")] ?? "",
+      projectCode: row[headerMap.get("projectcode")] ?? "",
+      status: row[headerMap.get("status")] ?? "",
+      pelaksanaan: row[headerMap.get("pelaksanaan")] ?? ""
+    }))
+    .filter((row) =>
+      [row.projectName, row.projectCode, row.status, row.pelaksanaan].some((value) => cleanInput(value))
+    );
+}
+
+function mapExcelHeaders(row = []) {
+  const headerMap = new Map();
+  row.forEach((cell, index) => {
+    const key = normalizeExcelHeader(cell);
+    if (key) {
+      headerMap.set(key, index);
+    }
+  });
+  return headerMap;
+}
+
+function normalizeExcelHeader(value) {
+  return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function buildProjectImportBatch(rows) {
+  const existingProjectCodes = new Set(state.masterProjects.map((project) => projectCodeKey(project.projectCode)));
+  const existingProjectIds = new Set(state.masterProjects.map((project) => String(project.id || "")));
+  const importedProjectCodes = new Set();
+  const importedProjectIds = new Set();
+  const result = {
+    projects: [],
+    duplicateCount: 0,
+    skippedCount: 0,
+    rowCount: rows.length
+  };
+
+  rows.forEach((row) => {
+    const projectName = cleanInput(row.projectName);
+    const projectCode = cleanInput(row.projectCode);
+    const status = resolveImportedProjectStatus(row.status);
+    const pelaksanaan = resolveImportedPelaksanaan(row.pelaksanaan);
+
+    if (!projectName || !projectCode || !status || !pelaksanaan) {
+      result.skippedCount += 1;
+      return;
+    }
+
+    const codeKey = projectCodeKey(projectCode);
+    const projectId = projectDocumentId({ projectName, projectCode });
+    if (
+      existingProjectCodes.has(codeKey) ||
+      importedProjectCodes.has(codeKey) ||
+      existingProjectIds.has(projectId) ||
+      importedProjectIds.has(projectId)
+    ) {
+      result.duplicateCount += 1;
+      return;
+    }
+
+    importedProjectCodes.add(codeKey);
+    importedProjectIds.add(projectId);
+    result.projects.push({
+      projectName,
+      projectCode,
+      status,
+      pelaksanaan
+    });
+  });
+
+  return result;
+}
+
+async function saveImportedMasterProjects(projects) {
+  const updatedBy = state.profile?.displayName || state.user?.email || "Team member";
+  const updatedByUid = state.user?.uid || "local";
+  const savedProjects = projects.map((project) =>
+    cleanObject({
+      ...project,
+      id: projectDocumentId(project),
+      title: project.projectName,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      updatedBy,
+      updatedByUid
+    })
+  );
+
+  if (state.mode === "firebase" && state.db) {
+    if (!isAdmin()) {
+      throw new Error("Only admin can upload project Excel.");
+    }
+
+    for (let index = 0; index < savedProjects.length; index += 450) {
+      const batch = state.sdk.writeBatch(state.db);
+      savedProjects.slice(index, index + 450).forEach((project) => {
+        const payload = cleanObject({
+          ...project,
+          createdAt: state.sdk.serverTimestamp(),
+          updatedAt: state.sdk.serverTimestamp()
+        });
+        delete payload.id;
+        batch.set(state.sdk.doc(state.db, "masterProjects", project.id), payload, { merge: true });
+      });
+      await batch.commit();
+    }
+
+    state.masterProjects = mergeById(state.masterProjects, savedProjects);
+    return savedProjects;
+  }
+
+  state.masterProjects = mergeById(state.masterProjects, savedProjects);
+  persistLocal();
+  return savedProjects;
+}
+
+function projectImportSummary(importBatch, lead) {
+  const notes = [];
+  if (importBatch.duplicateCount) {
+    notes.push(`${importBatch.duplicateCount} duplicate skipped`);
+  }
+  if (importBatch.skippedCount) {
+    notes.push(`${importBatch.skippedCount} incomplete or invalid row skipped`);
+  }
+  return `${lead}${notes.length ? ` ${notes.join(", ")}.` : ""}`;
+}
+
+function projectExcelFileName() {
+  return `NADI-Track-Projects-${new Date().toISOString().slice(0, 10)}.xlsx`;
+}
+
+function projectCodeKey(value) {
+  return cleanInput(value).toUpperCase();
+}
+
+function resolveImportedProjectStatus(value) {
+  const cleanValue = cleanInput(value);
+  if (!cleanValue) {
+    return "Aktif";
+  }
+
+  const lowerValue = cleanValue.toLowerCase();
+  if (["active", "aktif", "running"].includes(lowerValue)) {
+    return "Aktif";
+  }
+  if (["serah", "closed"].includes(lowerValue)) {
+    return "Serah";
+  }
+
+  return PROJECT_MASTER_STATUSES.find((status) => status.toLowerCase() === lowerValue) || "";
+}
+
+function resolveImportedPelaksanaan(value) {
+  const cleanValue = cleanInput(value);
+  if (!cleanValue) {
+    return "Konvensional Dalaman";
+  }
+
+  return PELAKSANAAN_OPTIONS.find((option) => option.toLowerCase() === cleanValue.toLowerCase()) || "";
 }
 
 async function saveFileItem(form) {
@@ -1837,6 +2173,23 @@ function renderMasterProjectForm() {
         <i data-lucide="save"></i>
         <span>Save project</span>
       </button>
+      <div class="button-row project-excel-actions full-span">
+        <button class="secondary-button" type="button" data-action="download-project-excel">
+          <i data-lucide="download"></i>
+          <span>Download Excel</span>
+        </button>
+        <button class="secondary-button" type="button" data-action="choose-project-excel" ${disabled ? "disabled" : ""}>
+          <i data-lucide="upload"></i>
+          <span>Upload Excel</span>
+        </button>
+        <input
+          class="visually-hidden"
+          type="file"
+          accept=".xlsx,.xls"
+          data-project-excel-upload
+          ${disabled ? "disabled" : ""}
+        />
+      </div>
     </form>
   `;
 }
@@ -2569,7 +2922,25 @@ function projectDocumentId(project) {
 }
 
 function normalizeProjectStatus(status) {
-  return String(status || "Aktif").trim() === "Running" ? "Aktif" : String(status || "Aktif").trim();
+  const value = cleanInput(status);
+  const lowerValue = value.toLowerCase();
+  if (!value || ["active", "aktif", "running"].includes(lowerValue)) {
+    return "Aktif";
+  }
+  if (["serah", "closed"].includes(lowerValue)) {
+    return "Serah";
+  }
+
+  return PROJECT_MASTER_STATUSES.find((option) => option.toLowerCase() === lowerValue) || "Aktif";
+}
+
+function normalizePelaksanaan(value) {
+  const cleanValue = cleanInput(value);
+  if (!cleanValue) {
+    return "Konvensional Dalaman";
+  }
+
+  return PELAKSANAAN_OPTIONS.find((option) => option.toLowerCase() === cleanValue.toLowerCase()) || "Konvensional Dalaman";
 }
 
 function normalizeFileStatus(status) {
@@ -2586,7 +2957,8 @@ function normalizeMasterProject(project) {
 
   return {
     ...projectData,
-    status: normalizeProjectStatus(projectData?.status)
+    status: normalizeProjectStatus(projectData?.status),
+    pelaksanaan: normalizePelaksanaan(projectData?.pelaksanaan)
   };
 }
 

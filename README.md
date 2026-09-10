@@ -5,7 +5,7 @@ A lightweight shared web app for File Tracker, Project Tracker, and Progress Tra
 ## What is included
 
 - File Tracker for hardcopy locations with project search, Jilid naming, Cabinet/Row location, and automatic Running/Closed categories.
-- List of Projects as the master input for Project Name, Project Code, Status, and Pelaksanaan.
+- List of Projects as the master input for Project Name, Project Code, Status, and Pelaksanaan, with Excel download/upload.
 - Project Tracker series for Konvensional Dalaman, Konvensional Perunding, and Reka & Bina.
 - Progress Tracker series for Konvensional Dalaman, Konvensional Perunding, and Reka & Bina.
 - Admin/team role controls for you and two colleagues.
@@ -27,10 +27,12 @@ Without Firebase config, the app works in local browser storage only. That is us
 ## Workflow
 
 1. Add every project once in List of Projects.
-2. In File Tracker, search the master project by project code or project name.
-3. Enter `0` for the first Jilid; the app will display the file as the project code only. Later Jilid values display as `CODE Jilid 2`, `CODE Jilid 3`, and so on.
-4. When a newer Jilid is added, earlier Jilid rows for that project become Closed automatically. Update the closed file's Cabinet/Row manually if it moves.
-5. Use Project Tracker and Progress Tracker by selecting from the master project list.
+2. Download Excel from List of Projects to get the current registered projects. The workbook columns are `Bil`, `Project Name`, `Project Code`, `Status`, and `Pelaksanaan`.
+3. Upload Excel from List of Projects to register new projects. Existing project codes and duplicate uploaded project codes are skipped.
+4. In File Tracker, search the master project by project code or project name.
+5. Enter `0` for the first Jilid; the app will display the file as the project code only. Later Jilid values display as `CODE Jilid 2`, `CODE Jilid 3`, and so on.
+6. When a newer Jilid is added, earlier Jilid rows for that project become Closed automatically. Update the closed file's Cabinet/Row manually if it moves.
+7. Use Project Tracker and Progress Tracker by selecting from the master project list.
 
 ## Add Firebase
 
