@@ -1074,6 +1074,11 @@ tr:last-child td {
   color: var(--muted);
 }
 
+.mobile-lookup-panel,
+.mobile-search-empty-state {
+  display: none;
+}
+
 .floating-trademark {
   position: fixed;
   right: 14px;
@@ -1190,6 +1195,88 @@ tr:last-child td {
   .content {
     gap: 16px;
     padding: 16px 12px 92px;
+  }
+
+  .mobile-lookup-panel {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .mobile-lookup-field {
+    display: grid;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  .mobile-lookup-field input {
+    width: 100%;
+    min-height: 46px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: #ffffff;
+    color: var(--ink);
+    outline: 0;
+  }
+
+  .mobile-lookup-field input:focus {
+    border-color: var(--teal);
+    box-shadow: 0 0 0 3px rgba(30, 111, 104, 0.12);
+  }
+
+  .mobile-clear-button {
+    width: 100%;
+  }
+
+  .mobile-search-empty-state {
+    display: grid;
+    min-height: 140px;
+    place-items: center;
+    gap: 8px;
+    border: 1px dashed #bfcbc8;
+    border-radius: 8px;
+    padding: 20px;
+    background: #fbfcfc;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .mobile-search-empty-state svg {
+    color: var(--teal);
+  }
+
+  .mobile-search-empty-state h3,
+  .mobile-search-empty-state p {
+    margin: 0;
+  }
+
+  .mobile-lookup-panel {
+    order: 1;
+  }
+
+  .mobile-search-empty-state {
+    order: 2;
+  }
+
+  .mobile-result-section {
+    order: 3;
+  }
+
+  .mobile-edit-section {
+    order: 4;
+  }
+
+  body[data-mobile-search="empty"] .mobile-searchable-section,
+  .file-location-search-panel,
+  .inline-notice.info {
+    display: none;
+  }
+
+  body[data-mobile-search="has-query"] .mobile-search-empty-state {
+    display: none;
   }
 
   .panel,
@@ -1360,6 +1447,11 @@ tr:last-child td {
 
   .mobile-card-table .row-actions {
     justify-content: flex-start;
+  }
+
+  .mobile-card-table td[data-label="Updated"],
+  .mobile-card-table td[data-label="Pelaksanaan"] {
+    display: none;
   }
 
   .floating-trademark {

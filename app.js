@@ -1,5 +1,5 @@
 const APP_VERSION = "ver1.0.0";
-const BUILD_ID = "20260911-4";
+const BUILD_ID = "20260911-5";
 const STORAGE_KEY = "hafize-tracker-state-v1";
 const FIREBASE_CONFIG_STORAGE_KEY = "hafize-firebase-config-v1";
 
@@ -440,6 +440,11 @@ function handleClick(event) {
     renderView();
   }
 
+  if (action === "clear-mobile-search") {
+    state.filter = "";
+    renderView();
+  }
+
   if (action === "select-search-project") {
     selectSearchProject(actionButton);
   }
@@ -516,6 +521,12 @@ function handleClick(event) {
 }
 
 function handleInput(event) {
+  const mobileLookupSearch = event.target.closest("[data-mobile-lookup-search]");
+  if (mobileLookupSearch) {
+    updateMobileLookupSearch(mobileLookupSearch);
+    return;
+  }
+
   const fileLocationSearch = event.target.closest("[data-file-location-search]");
   if (fileLocationSearch) {
     updateFileLocationSearchControls(fileLocationSearch);
@@ -1845,6 +1856,18 @@ function updateFileLocationSearchControls(input) {
   }
 }
 
+function updateMobileLookupSearch(input) {
+  state.filter = cleanInput(input.value).toLowerCase();
+  renderView();
+
+  const nextInput = document.querySelector("[data-mobile-lookup-search]");
+  if (nextInput) {
+    nextInput.focus();
+    const cursorPosition = nextInput.value.length;
+    nextInput.setSelectionRange(cursorPosition, cursorPosition);
+  }
+}
+
 function selectSearchProject(button) {
   const project = getMasterProjectById(button.dataset.id);
   const form = button.closest("form");
@@ -1953,6 +1976,7 @@ function renderShell() {
 
 function renderView() {
   if (state.mode === "firebase" && state.firebaseReady && !state.user) {
+    document.body.dataset.mobileSearch = "disabled";
     els.appView.innerHTML = renderAuthView();
     refreshIcons();
     return;
@@ -1967,8 +1991,72 @@ function renderView() {
     team: renderTeamView
   };
 
-  els.appView.innerHTML = (views[state.activeView] || renderOverview)();
+  const lookupFilter = activeLookupFilter();
+  document.body.dataset.mobileSearch = hasMobileLookupView()
+    ? lookupFilter
+      ? "has-query"
+      : "empty"
+    : "disabled";
+  els.appView.innerHTML = `
+    ${renderMobileLookupPanel()}
+    ${renderMobileSearchEmptyState()}
+    ${(views[state.activeView] || renderOverview)()}
+  `;
   refreshIcons();
+}
+
+function hasMobileLookupView() {
+  return ["overview", "projectList", "files", "projects", "progress"].includes(state.activeView);
+}
+
+function renderMobileLookupPanel() {
+  if (!hasMobileLookupView()) {
+    return "";
+  }
+
+  const placeholderByView = {
+    overview: "Search project name or code",
+    projectList: "Search project name or code",
+    files: "Search project for file location",
+    projects: "Search project tracker",
+    progress: "Search progress tracker"
+  };
+
+  return `
+    <section class="panel mobile-lookup-panel">
+      <label class="mobile-lookup-field">
+        <span>Search</span>
+        <input
+          data-mobile-lookup-search
+          value="${escapeAttribute(state.filter)}"
+          placeholder="${escapeAttribute(placeholderByView[state.activeView] || "Search project")}"
+          autocomplete="off"
+        />
+      </label>
+      ${
+        state.filter
+          ? `<button class="secondary-button mobile-clear-button" type="button" data-action="clear-mobile-search">
+              <i data-lucide="x"></i>
+              <span>Clear search</span>
+            </button>`
+          : ""
+      }
+    </section>
+  `;
+}
+
+function renderMobileSearchEmptyState() {
+  if (!hasMobileLookupView()) {
+    return "";
+  }
+
+  return `
+    <section class="mobile-search-empty-state">
+      <i data-lucide="search"></i>
+      <h3>Search to show details</h3>
+      <p>Type a project code or project name. Matching details and edit actions will appear here.</p>
+    </section>
+  `;
 }
 
 function renderAuthView() {
@@ -2021,7 +2109,7 @@ function renderOverview() {
       ${renderMetric("Blocked tasks", blocked, "octagon-alert", "Needs attention")}
     </section>
 
-    <section class="split-layout">
+    <section class="split-layout mobile-searchable-section mobile-result-section">
       <div class="panel">
         <div class="section-heading">
           <p class="eyebrow">Live work</p>
@@ -2049,13 +2137,13 @@ function renderProjectList() {
   const projects = filteredMasterProjects();
 
   return `
-    <section class="panel">
+    <section class="panel mobile-searchable-section mobile-edit-section">
       ${renderMasterProjectForm()}
       ${renderProjectDebugNotice(projects)}
       ${renderProjectSaveNotice()}
     </section>
 
-    <section class="table-section">
+    <section class="table-section mobile-searchable-section mobile-result-section">
       ${renderMasterProjectTable(projects)}
     </section>
   `;
@@ -2067,7 +2155,7 @@ function renderFileTracker() {
   const closedFiles = files.filter((item) => normalizeFileStatus(item.fileStatus) === "Closed");
 
   return `
-    <section class="panel">
+    <section class="panel mobile-searchable-section mobile-edit-section">
       <div class="section-heading">
         <p class="eyebrow">Hardcopy location</p>
         <h2>File Tracker</h2>
@@ -2079,7 +2167,7 @@ function renderFileTracker() {
 
     ${renderFileLocationSearch()}
 
-    <section class="table-section">
+    <section class="table-section mobile-searchable-section mobile-result-section">
       <div class="section-heading">
         <p class="eyebrow">${runningFiles.length} running</p>
         <h2>Running files</h2>
@@ -2087,7 +2175,7 @@ function renderFileTracker() {
       ${renderFileTable(runningFiles)}
     </section>
 
-    <section class="table-section">
+    <section class="table-section mobile-searchable-section mobile-result-section">
       <div class="section-heading">
         <p class="eyebrow">${closedFiles.length} closed</p>
         <h2>Closed files</h2>
@@ -2099,7 +2187,7 @@ function renderFileTracker() {
 
 function renderFileLocationSearch() {
   return `
-    <section class="panel" data-file-location-search-panel>
+    <section class="panel file-location-search-panel" data-file-location-search-panel>
       <div class="section-heading">
         <p class="eyebrow">Location search</p>
         <h2>Search file location</h2>
@@ -2184,7 +2272,7 @@ function renderProjectTracker() {
   return `
     ${renderProjectSeriesLauncher()}
 
-    <section class="panel">
+    <section class="panel mobile-searchable-section mobile-edit-section">
       <div class="section-heading">
         <p class="eyebrow">Manual row</p>
         <h2>Add or update project tracking</h2>
@@ -2203,7 +2291,7 @@ function renderProgressTracker() {
   return `
     ${renderProgressSeriesLauncher()}
 
-    <section class="panel">
+    <section class="panel mobile-searchable-section mobile-edit-section">
       <div class="section-heading">
         <p class="eyebrow">Manual row</p>
         <h2>Add or update progress tracking</h2>
@@ -2484,7 +2572,7 @@ function renderProjectSeriesLauncher() {
   const hasProjects = Boolean(selectedProject);
 
   return `
-    <section class="series-launcher" data-series-type="project">
+    <section class="series-launcher mobile-searchable-section mobile-edit-section" data-series-type="project">
       <div class="series-header">
         <div class="section-heading">
           <p class="eyebrow">Project series</p>
@@ -2511,7 +2599,7 @@ function renderProgressSeriesLauncher() {
   const selectedStage = stages[0] || "";
 
   return `
-    <section class="series-launcher" data-series-type="progress">
+    <section class="series-launcher mobile-searchable-section mobile-edit-section" data-series-type="progress">
       <div class="series-header">
         <div class="section-heading">
           <p class="eyebrow">Progress series</p>
@@ -2663,12 +2751,12 @@ function renderFileRow(item) {
 
 function renderTrackingBoard(items, type) {
   if (!items.length) {
-    return `<section class="table-section">${renderEmptyState("No tracking rows yet", "Create a series or add a manual row.")}</section>`;
+    return `<section class="table-section mobile-searchable-section mobile-result-section">${renderEmptyState("No tracking rows yet", "Create a series or add a manual row.")}</section>`;
   }
 
   const categories = type === "project" ? Object.keys(PROJECT_SERIES) : Object.keys(PROGRESS_SERIES);
   return `
-    <section class="board-grid">
+    <section class="board-grid mobile-searchable-section mobile-result-section">
       ${categories
         .map((category) => {
           const categoryItems = items.filter((item) => categoryForItem(item) === category);
@@ -2947,10 +3035,11 @@ function reportRuntimeError(error) {
 }
 
 function filteredItems(type = "") {
+  const lookupFilter = activeLookupFilter();
   return state.items
     .filter((item) => (type ? item.type === type : true))
     .filter((item) => {
-      if (!state.filter) {
+      if (!lookupFilter) {
         return true;
       }
 
@@ -2959,14 +3048,15 @@ function filteredItems(type = "") {
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
-        .includes(state.filter);
+        .includes(lookupFilter);
     })
     .sort(sortByUpdatedAt);
 }
 
 function filteredMasterProjects() {
+  const lookupFilter = activeLookupFilter();
   return sortedMasterProjects().filter((project) => {
-    if (!state.filter) {
+    if (!lookupFilter) {
       return true;
     }
 
@@ -2974,8 +3064,20 @@ function filteredMasterProjects() {
       .filter(Boolean)
       .join(" ")
       .toLowerCase()
-      .includes(state.filter);
+      .includes(lookupFilter);
   });
+}
+
+function activeLookupFilter() {
+  if (!state.filter) {
+    return "";
+  }
+
+  if (!window.matchMedia) {
+    return state.filter;
+  }
+
+  return window.matchMedia("(max-width: 820px)").matches ? state.filter : "";
 }
 
 function searchFileLocationItems(query) {
