@@ -42,6 +42,12 @@ textarea {
   font: inherit;
 }
 
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
 button {
   cursor: pointer;
 }
@@ -128,7 +134,7 @@ a {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 40px;
+  min-height: 44px;
   border: 0;
   border-radius: 8px;
   letter-spacing: 0;
@@ -1102,18 +1108,57 @@ tr:last-child td {
   }
 
   .sidebar {
-    position: static;
+    position: sticky;
+    z-index: 8;
+    top: 0;
     height: auto;
-    padding: 16px;
+    padding: 12px;
+    box-shadow: 0 12px 30px rgba(16, 33, 31, 0.18);
+  }
+
+  .brand {
+    min-height: 40px;
+  }
+
+  .brand-mark {
+    width: 38px;
+    height: 38px;
+  }
+
+  .brand-title {
+    font-size: 16px;
   }
 
   .nav-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    margin-top: 18px;
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+    overflow-x: auto;
+    padding-bottom: 3px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .nav-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-item {
+    flex: 0 0 auto;
+    min-width: 134px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.08);
+    white-space: nowrap;
   }
 
   .sidebar-footer {
-    margin-top: 18px;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    margin-top: 12px;
+  }
+
+  .ghost-button {
+    justify-content: center;
   }
 
   .topbar,
@@ -1124,8 +1169,11 @@ tr:last-child td {
   }
 
   .topbar {
+    position: static;
     min-height: unset;
-    padding: 18px;
+    gap: 12px;
+    padding: 16px;
+    background: var(--bg);
   }
 
   .topbar-actions,
@@ -1140,7 +1188,18 @@ tr:last-child td {
   }
 
   .content {
-    padding: 20px 16px 92px;
+    gap: 16px;
+    padding: 16px 12px 92px;
+  }
+
+  .panel,
+  .auth-card {
+    padding: 16px;
+  }
+
+  .metric-card {
+    min-height: 104px;
+    padding: 16px;
   }
 
   .form-grid,
@@ -1158,15 +1217,64 @@ tr:last-child td {
   .team-controls {
     grid-column: 1 / -1;
   }
+
+  .form-grid > .primary-button,
+  .form-grid > .secondary-button,
+  .form-grid > .danger-button,
+  .series-launcher > .secondary-button {
+    width: 100%;
+  }
+
+  .button-row {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .project-result,
+  .project-result-empty {
+    width: 100%;
+  }
 }
 
 @media (max-width: 520px) {
+  body {
+    font-size: 14px;
+  }
+
   h1 {
     font-size: 24px;
   }
 
+  h2 {
+    font-size: 18px;
+  }
+
   .nav-list {
-    grid-template-columns: 1fr;
+    margin-right: -12px;
+    padding-right: 12px;
+  }
+
+  .nav-item {
+    min-width: 118px;
+  }
+
+  .nav-item svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .sync-indicator {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .section-heading {
+    margin-bottom: 12px;
+  }
+
+  .linked-project-meta {
+    display: grid;
+    align-items: stretch;
   }
 
   .activity-row,
@@ -1183,5 +1291,80 @@ tr:last-child td {
   .status-pill {
     width: fit-content;
     margin-left: 0;
+  }
+
+  .mobile-card-table {
+    min-width: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .mobile-card-table thead {
+    display: none;
+  }
+
+  .mobile-card-table,
+  .mobile-card-table tbody,
+  .mobile-card-table tr,
+  .mobile-card-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .mobile-card-wrap {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .mobile-card-table tbody {
+    display: grid;
+    gap: 12px;
+  }
+
+  .mobile-card-table tr {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: 0 14px 32px rgba(23, 33, 31, 0.07);
+    overflow: hidden;
+  }
+
+  .mobile-card-table td {
+    display: grid;
+    grid-template-columns: minmax(94px, 36%) minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+    border-bottom: 1px solid var(--line);
+    padding: 10px 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .mobile-card-table td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .mobile-card-table td:last-child {
+    border-bottom: 0;
+  }
+
+  .mobile-card-table .project-name-cell,
+  .mobile-card-table .location-cell {
+    max-width: none;
+  }
+
+  .mobile-card-table .row-actions {
+    justify-content: flex-start;
+  }
+
+  .floating-trademark {
+    right: 10px;
+    bottom: 10px;
+    max-width: calc(100vw - 20px);
   }
 }

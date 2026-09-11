@@ -1,5 +1,5 @@
 const APP_VERSION = "ver1.0.0";
-const BUILD_ID = "20260911-3";
+const BUILD_ID = "20260911-4";
 const STORAGE_KEY = "hafize-tracker-state-v1";
 const FIREBASE_CONFIG_STORAGE_KEY = "hafize-firebase-config-v1";
 
@@ -2138,8 +2138,8 @@ function renderFileLocationSearchResults(query) {
       <strong>${matches.length}</strong>
       <span>logged file${matches.length === 1 ? "" : "s"} found</span>
     </div>
-    <div class="table-wrap">
-      <table>
+    <div class="table-wrap mobile-card-wrap">
+      <table class="mobile-card-table">
         <thead>
           <tr>
             <th>Project Code</th>
@@ -2169,12 +2169,12 @@ function renderFileLocationSearchRow(item) {
 
   return `
     <tr>
-      <td><strong>${escapeHtml(projectCodeForItem(item, project))}</strong></td>
-      <td>${escapeHtml(projectNameForItem(item, project))}</td>
-      <td>${escapeHtml(item.fileName || item.title)}</td>
-      <td><span class="status-pill table-pill ${statusClass(status)}">${escapeHtml(status)}</span></td>
-      <td class="location-cell">${location}</td>
-      <td>${formatDate(item.updatedAt)}</td>
+      <td data-label="Project Code"><strong>${escapeHtml(projectCodeForItem(item, project))}</strong></td>
+      <td data-label="Project">${escapeHtml(projectNameForItem(item, project))}</td>
+      <td data-label="Jilid">${escapeHtml(item.fileName || item.title)}</td>
+      <td data-label="Status"><span class="status-pill table-pill ${statusClass(status)}">${escapeHtml(status)}</span></td>
+      <td data-label="Location" class="location-cell">${location}</td>
+      <td data-label="Updated">${formatDate(item.updatedAt)}</td>
     </tr>
   `;
 }
@@ -2360,8 +2360,8 @@ function renderMasterProjectTable(projects) {
   }
 
   return `
-    <div class="table-wrap">
-      <table>
+    <div class="table-wrap mobile-card-wrap">
+      <table class="mobile-card-table">
         <thead>
           <tr>
             <th>Project Code</th>
@@ -2385,14 +2385,14 @@ function renderMasterProjectRow(project) {
 
   return `
     <tr>
-      <td><strong>${escapeHtml(project.projectCode)}</strong></td>
-      <td class="project-name-cell"><span>${escapeHtml(project.projectName)}</span></td>
-      <td><span class="status-pill ${statusClass(status)}">${escapeHtml(status)}</span></td>
-      <td>${escapeHtml(project.pelaksanaan || "Konvensional Dalaman")}</td>
-      <td>${formatDate(projectLastUpdatedAt(project))}</td>
+      <td data-label="Project Code"><strong>${escapeHtml(project.projectCode)}</strong></td>
+      <td data-label="Project Name" class="project-name-cell"><span>${escapeHtml(project.projectName)}</span></td>
+      <td data-label="Status"><span class="status-pill ${statusClass(status)}">${escapeHtml(status)}</span></td>
+      <td data-label="Pelaksanaan">${escapeHtml(project.pelaksanaan || "Konvensional Dalaman")}</td>
+      <td data-label="Updated">${formatDate(projectLastUpdatedAt(project))}</td>
       ${
         isAdmin()
-          ? `<td>
+          ? `<td data-label="Actions">
               <div class="row-actions">
                 <button class="icon-button" type="button" title="Edit" data-action="edit-master-project" data-id="${project.id}">
                   <i data-lucide="pencil"></i>
@@ -2608,8 +2608,8 @@ function renderFileTable(items) {
   }
 
   return `
-    <div class="table-wrap">
-      <table>
+    <div class="table-wrap mobile-card-wrap">
+      <table class="mobile-card-table">
         <thead>
           <tr>
             <th>Project Code</th>
@@ -2638,14 +2638,14 @@ function renderFileRow(item) {
 
   return `
     <tr>
-      <td><strong>${escapeHtml(projectCodeForItem(item, project))}</strong></td>
-      <td>${escapeHtml(projectNameForItem(item, project))}</td>
-      <td>${escapeHtml(item.fileName || item.title)}</td>
-      <td class="location-cell">${location}</td>
-      <td>${formatDate(item.updatedAt)}</td>
+      <td data-label="Project Code"><strong>${escapeHtml(projectCodeForItem(item, project))}</strong></td>
+      <td data-label="Project">${escapeHtml(projectNameForItem(item, project))}</td>
+      <td data-label="Jilid">${escapeHtml(item.fileName || item.title)}</td>
+      <td data-label="Location" class="location-cell">${location}</td>
+      <td data-label="Updated">${formatDate(item.updatedAt)}</td>
       ${
         isAdmin()
-          ? `<td>
+          ? `<td data-label="Actions">
               <div class="row-actions">
                 <button class="icon-button" type="button" title="Edit" data-action="edit-item" data-id="${item.id}">
                   <i data-lucide="pencil"></i>
