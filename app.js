@@ -1,5 +1,5 @@
 const APP_VERSION = "ver1.0.0";
-const BUILD_ID = "20260911-1";
+const BUILD_ID = "20260911-2";
 const STORAGE_KEY = "hafize-tracker-state-v1";
 const FIREBASE_CONFIG_STORAGE_KEY = "hafize-firebase-config-v1";
 
@@ -1115,8 +1115,8 @@ async function saveFileItem(form) {
     }
 
     if (!cabinet || !row) {
-      setTrackerNotice("file", "error", "Type both Cabinet and Row before saving.");
-      setSync("Cabinet and row required", "error");
+      setTrackerNotice("file", "error", "Type both Kabinet and Para before saving.");
+      setSync("Kabinet and para required", "error");
       renderShell();
       return;
     }
@@ -2316,8 +2316,8 @@ function renderFileForm() {
       <div class="project-search-results full-span" data-project-search-results></div>
       <div class="linked-project-meta full-span" data-linked-project-meta>${renderLinkedProjectMeta(null)}</div>
       <label>Jilid<input name="jilid" type="number" min="0" step="1" value="0" required /></label>
-      <label>Cabinet<input name="cabinet" required placeholder="X" /></label>
-      <label>Row<input name="row" required placeholder="X" /></label>
+      <label>Kabinet<input name="cabinet" required placeholder="X" /></label>
+      <label>Para<input name="row" required placeholder="X" /></label>
       <label class="full-span">Notes<textarea name="notes" rows="3" placeholder="Latest movement or closing remark"></textarea></label>
       <button class="primary-button" type="button" data-action="save-file-item" ${hasProjects ? "" : "disabled"}>
         <i data-lucide="save"></i>
@@ -2538,10 +2538,7 @@ function renderFileRow(item) {
     <tr>
       <td><strong>${escapeHtml(projectCodeForItem(item, project))}</strong></td>
       <td>${escapeHtml(projectNameForItem(item, project))}</td>
-      <td>
-        <span>${escapeHtml(item.fileName || item.title)}</span>
-        <span class="status-pill ${statusClass(normalizeFileStatus(item.fileStatus))}">${escapeHtml(normalizeFileStatus(item.fileStatus))}</span>
-      </td>
+      <td>${escapeHtml(item.fileName || item.title)}</td>
       <td class="location-cell">${location}</td>
       <td>${formatDate(item.updatedAt)}</td>
       ${
@@ -3092,12 +3089,12 @@ function formatHardcopyLocation(cabinet, row) {
     return "";
   }
 
-  return `Cabinet ${cleanCabinet || "-"} , Row ${cleanRow || "-"}`;
+  return `Kabinet ${cleanCabinet || "-"}, Para ${cleanRow || "-"}`;
 }
 
 function parseHardcopyLocation(location) {
   const value = String(location || "");
-  const match = value.match(/cabinet\s+(.+?)\s*,\s*row\s+(.+)/i);
+  const match = value.match(/(?:cabinet|kabinet)\s+(.+?)\s*,\s*(?:row|para)\s+(.+)/i);
   if (!match) {
     return {
       cabinet: "",

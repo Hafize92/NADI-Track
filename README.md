@@ -4,7 +4,7 @@ A lightweight shared web app for File Tracker, Project Tracker, and Progress Tra
 
 ## What is included
 
-- File Tracker for hardcopy locations with project search, Jilid naming, Cabinet/Row location, and automatic Running/Closed categories.
+- File Tracker for hardcopy locations with project search, Jilid naming, Kabinet/Para location, and automatic Running/Closed categories.
 - List of Projects as the master input for Project Name, Project Code, Status, and Pelaksanaan, with Excel download/upload.
 - Project Tracker series for Konvensional Dalaman, Konvensional Perunding, and Reka & Bina.
 - Progress Tracker series for Konvensional Dalaman, Konvensional Perunding, and Reka & Bina.
@@ -32,7 +32,7 @@ Without Firebase config, the app works in local browser storage only. That is us
 4. Projects are sorted by the ending number in Project Code, such as `D23.430`, `C23.431`, then `D23.437`.
 5. In File Tracker, search the master project by project code or project name.
 6. Enter `0` for the first Jilid; the app will display the file as the project code only. Later Jilid values display as `CODE Jilid 2`, `CODE Jilid 3`, and so on.
-7. When a newer Jilid is added, earlier Jilid rows for that project become Closed automatically. Update the closed file's Cabinet/Row manually if it moves.
+7. When a newer Jilid is added, earlier Jilid rows for that project become Closed automatically. Update the closed file's Kabinet/Para manually if it moves.
 8. Use Project Tracker and Progress Tracker by selecting from the master project list.
 
 ## Add Firebase
