@@ -1,5 +1,5 @@
 const APP_VERSION = "ver1.0.0";
-const BUILD_ID = "20260910-4";
+const BUILD_ID = "20260911-1";
 const STORAGE_KEY = "hafize-tracker-state-v1";
 const FIREBASE_CONFIG_STORAGE_KEY = "hafize-firebase-config-v1";
 
@@ -85,8 +85,6 @@ const PROJECT_MASTER_STATUSES = ["Aktif", "Serah"];
 const PELAKSANAAN_OPTIONS = Object.keys(PROJECT_SERIES);
 const PROJECT_EXCEL_HEADERS = ["Bil", "Project Name", "Project Code", "Status", "Pelaksanaan"];
 const PROJECT_EXCEL_SHEET_NAME = "List of Projects";
-const PROJECT_CODE_STATE_ORDER = ["J", "K", "D", "M", "N", "C", "P", "A", "R", "SB", "S", "B", "T"];
-const PROJECT_CODE_STATE_RANK = Object.fromEntries(PROJECT_CODE_STATE_ORDER.map((code, index) => [code, index]));
 
 const SEEDED_RECORD_PREFIX = "sample-";
 
@@ -3159,12 +3157,8 @@ function sortedMasterProjects() {
     const aSort = projectCodeSortParts(a.projectCode);
     const bSort = projectCodeSortParts(b.projectCode);
 
-    if (aSort.year !== bSort.year) {
-      return aSort.year - bSort.year;
-    }
-
-    if (aSort.stateRank !== bSort.stateRank) {
-      return aSort.stateRank - bSort.stateRank;
+    if (aSort.trailingNumber !== bSort.trailingNumber) {
+      return aSort.trailingNumber - bSort.trailingNumber;
     }
 
     const codeCompare = aSort.code.localeCompare(bSort.code, "en-MY", { numeric: true, sensitivity: "base" });
@@ -3181,21 +3175,11 @@ function sortedMasterProjects() {
 
 function projectCodeSortParts(projectCode) {
   const code = String(projectCode || "").trim().toUpperCase();
-  const match = code.match(/^([A-Z]+)\s*([0-9]{2})/);
+  const match = code.match(/(\d+)\s*$/);
 
-  if (!match) {
-    return {
-      code,
-      year: Number.MAX_SAFE_INTEGER,
-      stateRank: Number.MAX_SAFE_INTEGER
-    };
-  }
-
-  const stateCode = match[1];
   return {
     code,
-    year: Number(match[2]),
-    stateRank: PROJECT_CODE_STATE_RANK[stateCode] ?? Number.MAX_SAFE_INTEGER
+    trailingNumber: match ? Number(match[1]) : Number.MAX_SAFE_INTEGER
   };
 }
 

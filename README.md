@@ -29,7 +29,7 @@ Without Firebase config, the app works in local browser storage only. That is us
 1. Add every project once in List of Projects.
 2. Download Excel from List of Projects to get the current registered projects. The workbook columns are `Bil`, `Project Name`, `Project Code`, `Status`, and `Pelaksanaan`.
 3. Upload Excel from List of Projects to register new projects. Existing project codes, duplicate uploaded project codes, and rows missing any of the five required columns are skipped.
-4. Projects are sorted by Project Code year first, then by negeri code order: `J`, `K`, `D`, `M`, `N`, `C`, `P`, `A`, `R`, `SB`, `S`, `B`, `T`.
+4. Projects are sorted by the ending number in Project Code, such as `D23.430`, `C23.431`, then `D23.437`.
 5. In File Tracker, search the master project by project code or project name.
 6. Enter `0` for the first Jilid; the app will display the file as the project code only. Later Jilid values display as `CODE Jilid 2`, `CODE Jilid 3`, and so on.
 7. When a newer Jilid is added, earlier Jilid rows for that project become Closed automatically. Update the closed file's Cabinet/Row manually if it moves.
