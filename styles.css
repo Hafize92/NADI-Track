@@ -778,6 +778,37 @@ tr:last-child td {
   color: var(--ink);
 }
 
+.file-location-search-form {
+  margin-bottom: 14px;
+}
+
+.file-location-search-results {
+  display: grid;
+  gap: 12px;
+}
+
+.location-result-summary {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #fbfcfc;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.location-result-summary strong {
+  color: var(--teal);
+}
+
+.status-pill.table-pill {
+  margin-left: 0;
+}
+
 .template-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

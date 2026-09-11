@@ -31,9 +31,10 @@ Without Firebase config, the app works in local browser storage only. That is us
 3. Upload Excel from List of Projects to register new projects. Existing project codes, duplicate uploaded project codes, and rows missing any of the five required columns are skipped.
 4. Projects are sorted by the ending number in Project Code, such as `D23.430`, `C23.431`, then `D23.437`.
 5. In File Tracker, search the master project by project code or project name.
-6. Enter `0` for the first Jilid; the app will display the file as the project code only. Later Jilid values display as `CODE Jilid 2`, `CODE Jilid 3`, and so on.
-7. When a newer Jilid is added, earlier Jilid rows for that project become Closed automatically. Update the closed file's Kabinet/Para manually if it moves.
-8. Use Project Tracker and Progress Tracker by selecting from the master project list.
+6. Use Search file location in File Tracker to find logged Jilid locations by project code or project name.
+7. Enter `0` for the first Jilid; the app will display the file as the project code only. Later Jilid values display as `CODE Jilid 2`, `CODE Jilid 3`, and so on.
+8. When a newer Jilid is added, earlier Jilid rows for that project become Closed automatically. Update the closed file's Kabinet/Para manually if it moves.
+9. Use Project Tracker and Progress Tracker by selecting from the master project list.
 
 ## Add Firebase
 

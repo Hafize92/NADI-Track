@@ -1,5 +1,5 @@
 const APP_VERSION = "ver1.0.0";
-const BUILD_ID = "20260911-2";
+const BUILD_ID = "20260911-3";
 const STORAGE_KEY = "hafize-tracker-state-v1";
 const FIREBASE_CONFIG_STORAGE_KEY = "hafize-firebase-config-v1";
 
@@ -104,6 +104,7 @@ const state = {
   items: [],
   users: [],
   filter: "",
+  fileLocationSearch: "",
   lastProjectSave: null,
   lastTrackerSave: {
     file: null,
@@ -515,6 +516,12 @@ function handleClick(event) {
 }
 
 function handleInput(event) {
+  const fileLocationSearch = event.target.closest("[data-file-location-search]");
+  if (fileLocationSearch) {
+    updateFileLocationSearchControls(fileLocationSearch);
+    return;
+  }
+
   const projectSearch = event.target.closest("[data-master-project-search]");
   if (projectSearch) {
     updateMasterProjectSearchControls(projectSearch);
@@ -1827,6 +1834,17 @@ function updateMasterProjectSearchControls(projectSearch) {
   }
 }
 
+function updateFileLocationSearchControls(input) {
+  state.fileLocationSearch = cleanInput(input.value);
+  const panel = input.closest("[data-file-location-search-panel]");
+  const results = panel?.querySelector("[data-file-location-search-results]");
+
+  if (results) {
+    results.innerHTML = renderFileLocationSearchResults(state.fileLocationSearch);
+    refreshIcons();
+  }
+}
+
 function selectSearchProject(button) {
   const project = getMasterProjectById(button.dataset.id);
   const form = button.closest("form");
@@ -2059,6 +2077,8 @@ function renderFileTracker() {
       ${renderTrackerSaveNotice("file")}
     </section>
 
+    ${renderFileLocationSearch()}
+
     <section class="table-section">
       <div class="section-heading">
         <p class="eyebrow">${runningFiles.length} running</p>
@@ -2074,6 +2094,88 @@ function renderFileTracker() {
       </div>
       ${renderFileTable(closedFiles)}
     </section>
+  `;
+}
+
+function renderFileLocationSearch() {
+  return `
+    <section class="panel" data-file-location-search-panel>
+      <div class="section-heading">
+        <p class="eyebrow">Location search</p>
+        <h2>Search file location</h2>
+      </div>
+      <div class="form-grid compact file-location-search-form">
+        <label>
+          Project code or project name
+          <input
+            data-file-location-search
+            value="${escapeAttribute(state.fileLocationSearch)}"
+            placeholder="Search logged project"
+            autocomplete="off"
+          />
+        </label>
+      </div>
+      <div class="file-location-search-results" data-file-location-search-results>
+        ${renderFileLocationSearchResults(state.fileLocationSearch)}
+      </div>
+    </section>
+  `;
+}
+
+function renderFileLocationSearchResults(query) {
+  const cleanQuery = cleanInput(query);
+  if (!cleanQuery) {
+    return renderEmptyState("Search logged file locations", "Type a project code or project name to show saved Kabinet and Para.");
+  }
+
+  const matches = searchFileLocationItems(cleanQuery);
+  if (!matches.length) {
+    return renderEmptyState("No logged file location found", "Check the project code or project name.");
+  }
+
+  return `
+    <div class="location-result-summary">
+      <strong>${matches.length}</strong>
+      <span>logged file${matches.length === 1 ? "" : "s"} found</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Project Code</th>
+            <th>Project</th>
+            <th>Jilid</th>
+            <th>Status</th>
+            <th>Location</th>
+            <th>Updated</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${matches.map(renderFileLocationSearchRow).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderFileLocationSearchRow(item) {
+  const project = getProjectForItem(item);
+  const status = normalizeFileStatus(item.fileStatus);
+  const location = item.location
+    ? isLikelyUrl(item.location)
+      ? `<a href="${escapeAttribute(item.location)}" target="_blank" rel="noreferrer">${escapeHtml(item.location)}</a>`
+      : escapeHtml(item.location)
+    : `<span class="muted">Not set</span>`;
+
+  return `
+    <tr>
+      <td><strong>${escapeHtml(projectCodeForItem(item, project))}</strong></td>
+      <td>${escapeHtml(projectNameForItem(item, project))}</td>
+      <td>${escapeHtml(item.fileName || item.title)}</td>
+      <td><span class="status-pill table-pill ${statusClass(status)}">${escapeHtml(status)}</span></td>
+      <td class="location-cell">${location}</td>
+      <td>${formatDate(item.updatedAt)}</td>
+    </tr>
   `;
 }
 
@@ -2874,6 +2976,50 @@ function filteredMasterProjects() {
       .toLowerCase()
       .includes(state.filter);
   });
+}
+
+function searchFileLocationItems(query) {
+  const cleanQuery = cleanInput(query).toLowerCase();
+  if (!cleanQuery) {
+    return [];
+  }
+
+  return state.items
+    .filter((item) => item.type === "file")
+    .filter((item) => {
+      const project = getProjectForItem(item);
+      return [
+        projectCodeForItem(item, project),
+        projectNameForItem(item, project),
+        item.fileName,
+        item.title,
+        item.location,
+        normalizeFileStatus(item.fileStatus)
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(cleanQuery);
+    })
+    .sort(sortFileLocationItems);
+}
+
+function sortFileLocationItems(a, b) {
+  const projectA = getProjectForItem(a);
+  const projectB = getProjectForItem(b);
+  const aSort = projectCodeSortParts(projectCodeForItem(a, projectA));
+  const bSort = projectCodeSortParts(projectCodeForItem(b, projectB));
+
+  if (aSort.trailingNumber !== bSort.trailingNumber) {
+    return aSort.trailingNumber - bSort.trailingNumber;
+  }
+
+  const codeCompare = aSort.code.localeCompare(bSort.code, "en-MY", { numeric: true, sensitivity: "base" });
+  if (codeCompare !== 0) {
+    return codeCompare;
+  }
+
+  return normalizeJilid(b.jilid) - normalizeJilid(a.jilid);
 }
 
 function sortByUpdatedAt(a, b) {
