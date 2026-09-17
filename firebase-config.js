@@ -8,6 +8,3 @@ window.HAFIZE_FIREBASE_CONFIG = {
 };
 
 window.HAFIZE_ADMIN_EMAILS = [];
-window.HAFIZE_COLLEAGUE_EMAILS = [
-  "nurfarhani@jkr.gov.my"
-];
