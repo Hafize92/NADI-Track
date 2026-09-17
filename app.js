@@ -1,4 +1,5 @@
-const APP_VERSION = "ver1.5.9";
+const APP_VERSION = "ver1.0.0";
+const BUILD_ID = "20260917-1";
 const STORAGE_KEY = "hafize-tracker-state-v1";
 const FIREBASE_CONFIG_STORAGE_KEY = "hafize-firebase-config-v1";
 
@@ -2588,6 +2589,7 @@ function renderProjectList() {
   return `
     <section class="panel mobile-searchable-section mobile-edit-section">
       ${renderMasterProjectForm()}
+      ${renderProjectDebugNotice(projects)}
       ${renderProjectSaveNotice()}
     </section>
 
@@ -2609,6 +2611,7 @@ function renderFileTracker() {
         <h2>File Tracker</h2>
       </div>
       ${renderFileForm()}
+      ${renderTrackerDebugNotice("file", files)}
       ${renderTrackerSaveNotice("file")}
     </section>
 
@@ -2725,6 +2728,7 @@ function renderProjectTracker() {
         <h2>Add or update project tracking</h2>
       </div>
       ${renderProjectForm()}
+      ${renderTrackerDebugNotice("project", items)}
       ${renderTrackerSaveNotice("project")}
     </section>
 
@@ -2743,6 +2747,7 @@ function renderProgressTracker() {
         <h2>Add or update progress tracking</h2>
       </div>
       ${renderProgressForm()}
+      ${renderTrackerDebugNotice("progress", items)}
       ${renderTrackerSaveNotice("progress")}
     </section>
 
@@ -2863,6 +2868,17 @@ function renderMasterProjectForm() {
   `;
 }
 
+function renderProjectDebugNotice(projects) {
+  const email = state.user?.email || state.profile?.email || "not signed in";
+  const role = isAdmin() ? "admin" : state.profile?.role || "no role";
+  return `
+    <div class="inline-notice info" role="status">
+      <i data-lucide="info"></i>
+      <span>Build ${BUILD_ID} | ${state.mode} | ${role} | ${escapeHtml(email)} | ${projects.length} project loaded</span>
+    </div>
+  `;
+}
+
 function renderProjectSaveNotice() {
   if (!state.lastProjectSave) {
     return "";
@@ -2872,6 +2888,24 @@ function renderProjectSaveNotice() {
     <div class="inline-notice ${escapeAttribute(state.lastProjectSave.tone)}" role="status">
       <i data-lucide="${state.lastProjectSave.tone === "error" ? "circle-alert" : "info"}"></i>
       <span>${escapeHtml(state.lastProjectSave.message)}</span>
+    </div>
+  `;
+}
+
+function renderTrackerDebugNotice(type, items) {
+  const email = state.user?.email || state.profile?.email || "not signed in";
+  const role = isAdmin() ? "admin" : state.profile?.role || "no role";
+  const label = {
+    file: "file row",
+    project: "project tracker row",
+    progress: "progress tracker row"
+  }[type] || "tracker row";
+  const count = Array.isArray(items) ? items.length : 0;
+
+  return `
+    <div class="inline-notice info" role="status">
+      <i data-lucide="info"></i>
+      <span>Build ${BUILD_ID} | ${state.mode} | ${role} | ${escapeHtml(email)} | ${count} ${escapeHtml(label)}${count === 1 ? "" : "s"} loaded</span>
     </div>
   `;
 }
