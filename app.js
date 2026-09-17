@@ -1,5 +1,5 @@
 const APP_VERSION = "ver1.0.0";
-const BUILD_ID = "20260917-1";
+const BUILD_ID = "20260911-5";
 const STORAGE_KEY = "hafize-tracker-state-v1";
 const FIREBASE_CONFIG_STORAGE_KEY = "hafize-firebase-config-v1";
 
@@ -85,36 +85,6 @@ const PROJECT_MASTER_STATUSES = ["Aktif", "Serah"];
 const PELAKSANAAN_OPTIONS = Object.keys(PROJECT_SERIES);
 const PROJECT_EXCEL_HEADERS = ["Bil", "Project Name", "Project Code", "Status", "Pelaksanaan"];
 const PROJECT_EXCEL_SHEET_NAME = "List of Projects";
-const EXCEL_COVER_SHEET_NAME = "Muka Depan";
-const EXCEL_CONFIRMATION_SHEET_NAME = "Pengesahan";
-const JKR_LOGO_PATH = "./assets/jkr-logo.png";
-const VEHICLE_INFO_DOC_ID = "vehicle-project-info";
-const VEHICLE_INFO_TYPE = "vehicleProjectInfo";
-const VEHICLE_INFO_DEFAULTS = {
-  projectName: "",
-  contractNo: "",
-  contractor: "",
-  driverNamePhone: "",
-  vehicleRegistration: "",
-  vehicleType: "",
-  responsibleOfficer: "",
-  officeName: "CAWANGAN KEJURUTERAAN AWAM DAN STRUKTUR",
-  reviewYear: String(new Date().getFullYear())
-};
-const CONFIRMATION_MONTHS = [
-  "JANUARI",
-  "FEBRUARI",
-  "MAC",
-  "APRIL",
-  "MEI",
-  "JUN",
-  "JULAI",
-  "OGOS",
-  "SEPTEMBER",
-  "OKTOBER",
-  "NOVEMBER",
-  "DISEMBER"
-];
 
 const SEEDED_RECORD_PREFIX = "sample-";
 
@@ -133,11 +103,9 @@ const state = {
   masterProjects: [],
   items: [],
   users: [],
-  vehicleInfo: { ...VEHICLE_INFO_DEFAULTS },
   filter: "",
   fileLocationSearch: "",
   lastProjectSave: null,
-  lastVehicleInfoSave: null,
   lastTrackerSave: {
     file: null,
     project: null,
@@ -248,7 +216,6 @@ async function startFirebase(firebaseConfig) {
         state.masterProjects = [];
         state.items = [];
         state.users = [];
-        state.vehicleInfo = { ...VEHICLE_INFO_DEFAULTS };
         setSync("Signed out", "idle");
         renderShell();
         return;
@@ -290,10 +257,7 @@ function startLocalMode(label) {
   const saved = safeJsonParse(localStorage.getItem(STORAGE_KEY), null);
   const hasSavedData = Boolean(
     saved &&
-      (Array.isArray(saved.masterProjects) ||
-        Array.isArray(saved.items) ||
-        Array.isArray(saved.users) ||
-        saved.vehicleInfo)
+      (Array.isArray(saved.masterProjects) || Array.isArray(saved.items) || Array.isArray(saved.users))
   );
 
   if (hasSavedData) {
@@ -306,13 +270,11 @@ function startLocalMode(label) {
     state.users = Array.isArray(saved?.users) && saved.users.length
       ? saved.users.filter((user) => !isSeededRecord(user))
       : [state.profile];
-    state.vehicleInfo = normalizeVehicleProjectInfo(saved?.vehicleInfo);
     persistLocal();
   } else {
     state.masterProjects = [];
     state.items = [];
     state.users = [state.profile];
-    state.vehicleInfo = { ...VEHICLE_INFO_DEFAULTS };
     persistLocal();
   }
 
@@ -392,11 +354,7 @@ function subscribeToData() {
         ...normalizeFirebaseData(docSnapshot.data())
       }));
       const seededIds = docs.filter(isSeededRecord).map((doc) => doc.id);
-      const vehicleInfoDoc = docs.find(isVehicleProjectInfoRecord);
-      state.vehicleInfo = normalizeVehicleProjectInfo(vehicleInfoDoc);
-      state.items = docs
-        .filter((doc) => !isSeededRecord(doc) && !isVehicleProjectInfoRecord(doc))
-        .map(normalizeTrackerItem);
+      state.items = docs.filter((doc) => !isSeededRecord(doc)).map(normalizeTrackerItem);
       deleteSeededDocuments("trackerItems", seededIds);
 
       setPassiveSync(snapshot.metadata.hasPendingWrites ? "Saving" : "Synced", snapshot.metadata.hasPendingWrites ? "saving" : "online");
@@ -529,14 +487,6 @@ function handleClick(event) {
     chooseProjectExcelFile();
   }
 
-  if (action === "save-vehicle-info") {
-    event.preventDefault();
-    const form = actionButton.closest("form");
-    if (form) {
-      saveVehicleProjectInfo(form);
-    }
-  }
-
   if (action === "save-master-project") {
     event.preventDefault();
     const form = actionButton.closest("form");
@@ -638,12 +588,6 @@ function handleSubmit(event) {
   if (form.id === "firebaseSetupForm") {
     event.preventDefault();
     saveFirebaseConfig(form);
-    return;
-  }
-
-  if (form.id === "vehicleProjectInfoForm") {
-    event.preventDefault();
-    saveVehicleProjectInfo(form);
     return;
   }
 
@@ -838,114 +782,30 @@ async function saveMasterProject(form) {
   renderShell();
 }
 
-async function saveVehicleProjectInfo(form) {
-  if (!isAdmin()) {
-    state.lastVehicleInfoSave = {
-      tone: "error",
-      message: "Only admin can update Maklumat Kenderaan Projek."
-    };
-    setSync("Admin only", "error");
-    renderShell();
+function downloadProjectExcel() {
+  if (!ensureExcelLibrary()) {
     return;
   }
 
-  const formData = new FormData(form);
-  const nextInfo = normalizeVehicleProjectInfo({
-    id: VEHICLE_INFO_DOC_ID,
-    type: VEHICLE_INFO_TYPE,
-    projectName: formData.get("projectName"),
-    contractNo: formData.get("contractNo"),
-    contractor: formData.get("contractor"),
-    driverNamePhone: formData.get("driverNamePhone"),
-    vehicleRegistration: formData.get("vehicleRegistration"),
-    vehicleType: formData.get("vehicleType"),
-    responsibleOfficer: formData.get("responsibleOfficer"),
-    officeName: formData.get("officeName"),
-    reviewYear: formData.get("reviewYear"),
-    updatedAt: nowIso(),
-    updatedBy: state.profile?.displayName || state.user?.email || "Team member",
-    updatedByUid: state.user?.uid || "local"
-  });
-
-  try {
-    state.lastVehicleInfoSave = {
-      tone: "saving",
-      message: "Saving Maklumat Kenderaan Projek..."
-    };
-    setSync("Saving vehicle info", "saving");
-    renderShell();
-
-    if (state.mode === "firebase" && state.db) {
-      const payload = cleanObject({
-        ...nextInfo,
-        updatedAt: state.sdk.serverTimestamp()
-      });
-      delete payload.id;
-      await state.sdk.setDoc(state.sdk.doc(state.db, "trackerItems", VEHICLE_INFO_DOC_ID), payload, { merge: true });
-    }
-
-    state.vehicleInfo = nextInfo;
-    persistLocal();
-    state.lastVehicleInfoSave = {
-      tone: "success",
-      message: "Maklumat Kenderaan Projek saved."
-    };
-    setSync(state.mode === "firebase" ? "Vehicle info synced" : "Vehicle info saved locally", state.mode === "firebase" ? "online" : "local");
-    renderShell();
-  } catch (error) {
-    console.error(error);
-    state.lastVehicleInfoSave = {
-      tone: "error",
-      message: friendlyFirebaseError(error)
-    };
-    setSync(friendlyFirebaseError(error), "error");
-    renderShell();
-  }
-}
-
-function renderVehicleInfoSaveNotice() {
-  if (!state.lastVehicleInfoSave) {
-    return "";
-  }
-
-  return `
-    <div class="inline-notice ${escapeAttribute(state.lastVehicleInfoSave.tone)}" role="status">
-      <i data-lucide="${state.lastVehicleInfoSave.tone === "error" ? "circle-alert" : "info"}"></i>
-      <span>${escapeHtml(state.lastVehicleInfoSave.message)}</span>
-    </div>
-  `;
-}
-
-async function downloadProjectExcel() {
-  if (!ensureExcelDownloadLibrary()) {
-    return;
-  }
-
-  try {
-    setSync("Preparing Excel", "saving");
-    const workbook = new window.ExcelJS.Workbook();
-    workbook.creator = "NADI Track";
-    workbook.lastModifiedBy = state.profile?.displayName || state.user?.email || "NADI Track";
-    workbook.created = new Date();
-    workbook.modified = new Date();
-
-    const logoBase64 = await fetchLogoBase64();
-    buildCoverWorksheet(workbook, logoBase64);
-    buildConfirmationWorksheet(workbook);
-    buildProjectListWorksheet(workbook);
-
-    const buffer = await workbook.xlsx.writeBuffer();
-    downloadWorkbookBuffer(buffer, projectExcelFileName());
-    setSync("Excel downloaded", state.mode === "firebase" ? "online" : "local");
-  } catch (error) {
-    console.error(error);
-    state.lastProjectSave = {
-      tone: "error",
-      message: friendlyFirebaseError(error)
-    };
-    setSync(friendlyFirebaseError(error), "error");
-    renderShell();
-  }
+  const rows = sortedMasterProjects().map((project, index) => [
+    index + 1,
+    project.projectName || "",
+    project.projectCode || "",
+    normalizeProjectStatus(project.status),
+    normalizePelaksanaan(project.pelaksanaan)
+  ]);
+  const worksheet = window.XLSX.utils.aoa_to_sheet([PROJECT_EXCEL_HEADERS, ...rows]);
+  worksheet["!cols"] = [
+    { wch: 8 },
+    { wch: 64 },
+    { wch: 20 },
+    { wch: 14 },
+    { wch: 30 }
+  ];
+  const workbook = window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(workbook, worksheet, PROJECT_EXCEL_SHEET_NAME);
+  window.XLSX.writeFile(workbook, projectExcelFileName());
+  setSync("Excel downloaded", state.mode === "firebase" ? "online" : "local");
 }
 
 function chooseProjectExcelFile() {
@@ -993,7 +853,12 @@ async function importProjectExcel(input) {
   try {
     setSync("Reading Excel", "saving");
     const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
-    const worksheet = findProjectWorksheet(workbook);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = sheetName ? workbook.Sheets[sheetName] : null;
+
+    if (!worksheet) {
+      throw new Error("Excel file has no worksheet.");
+    }
 
     const rows = parseProjectExcelRows(worksheet);
     const importBatch = buildProjectImportBatch(rows);
@@ -1047,321 +912,6 @@ function ensureExcelLibrary() {
   setSync("Excel unavailable", "error");
   renderShell();
   return false;
-}
-
-function ensureExcelDownloadLibrary() {
-  if (window.ExcelJS) {
-    return true;
-  }
-
-  state.lastProjectSave = {
-    tone: "error",
-    message: "Excel formatter is still loading. Refresh the page and try again."
-  };
-  setSync("Excel formatter unavailable", "error");
-  renderShell();
-  return false;
-}
-
-function findProjectWorksheet(workbook) {
-  for (const sheetName of workbook.SheetNames || []) {
-    const worksheet = workbook.Sheets[sheetName];
-    if (!worksheet) {
-      continue;
-    }
-
-    try {
-      parseProjectExcelRows(worksheet);
-      return worksheet;
-    } catch {
-      // Continue scanning; downloaded workbooks now include cover sheets before the project list.
-    }
-  }
-
-  throw new Error("Excel must include a sheet with columns: Bil, Project Name, Project Code, Status, Pelaksanaan.");
-}
-
-async function fetchLogoBase64() {
-  const response = await fetch(JKR_LOGO_PATH);
-  if (!response.ok) {
-    throw new Error("JKR logo could not be loaded for Excel download.");
-  }
-
-  const blob = await response.blob();
-  return blobToDataUrl(blob);
-}
-
-function blobToDataUrl(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(reader.error || new Error("Could not read image."));
-    reader.readAsDataURL(blob);
-  });
-}
-
-function buildCoverWorksheet(workbook, logoBase64) {
-  const info = normalizeVehicleProjectInfo(state.vehicleInfo);
-  const sheet = workbook.addWorksheet(EXCEL_COVER_SHEET_NAME, {
-    pageSetup: {
-      paperSize: 1,
-      orientation: "landscape",
-      fitToPage: true,
-      fitToWidth: 1,
-      fitToHeight: 1,
-      horizontalCentered: true,
-      verticalCentered: true,
-      margins: { left: 0.25, right: 0.25, top: 0.25, bottom: 0.25, header: 0.1, footer: 0.1 },
-      printArea: "A1:N34"
-    },
-    views: [{ showGridLines: false }]
-  });
-
-  for (let col = 1; col <= 14; col += 1) {
-    sheet.getColumn(col).width = 9.6;
-  }
-  for (let row = 1; row <= 34; row += 1) {
-    sheet.getRow(row).height = row < 12 ? 24 : 27;
-  }
-
-  applyOuterBorder(sheet, 2, 2, 33, 13, "double");
-
-  const logoId = workbook.addImage({ base64: logoBase64, extension: "png" });
-  sheet.addImage(logoId, {
-    tl: { col: 5.1, row: 3.0 },
-    ext: { width: 300, height: 225 }
-  });
-
-  mergeAndStyle(sheet, "B14:M14", "JABATAN KERJA RAYA MALAYSIA", {
-    font: { name: "Arial", size: 18, bold: true },
-    alignment: centerMiddle()
-  });
-  mergeAndStyle(sheet, "B17:M17", "BUKU LOG KENDERAAN", {
-    font: { name: "Arial", size: 24, bold: true },
-    alignment: centerMiddle()
-  });
-
-  addCoverInfoRow(sheet, 20, "NAMA PROJEK:", coverValue(info.projectName, "NAMA PROJEK"));
-  addCoverInfoRow(sheet, 25, "NO. KONTRAK:", coverValue(info.contractNo, "NO KONTRAK"));
-  addCoverInfoRow(sheet, 27, "KONTRAKTOR:", coverValue(info.contractor, "NAMA KONTRAKTOR"));
-  addCoverInfoRow(sheet, 29, "NAMA PEMANDU DAN NO. (H/P):", coverValue(info.driverNamePhone, "NAMA PEMANDU DAN NO. HP"));
-  addCoverInfoRow(sheet, 31, "NO.PENDAFTARAN:", coverValue(info.vehicleRegistration, "NO KENDERAAN"));
-}
-
-function addCoverInfoRow(sheet, row, label, value) {
-  sheet.mergeCells(`C${row}:E${row}`);
-  sheet.mergeCells(`F${row}:L${row}`);
-  const labelCell = sheet.getCell(`C${row}`);
-  const valueCell = sheet.getCell(`F${row}`);
-  labelCell.value = label;
-  valueCell.value = value;
-  [labelCell, valueCell].forEach((cell) => {
-    cell.font = { name: "Arial", size: 14, bold: true };
-    cell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
-  });
-}
-
-function buildConfirmationWorksheet(workbook) {
-  const info = normalizeVehicleProjectInfo(state.vehicleInfo);
-  const year = normalizeReviewYear(info.reviewYear);
-  const sheet = workbook.addWorksheet(EXCEL_CONFIRMATION_SHEET_NAME, {
-    pageSetup: {
-      paperSize: 8,
-      orientation: "landscape",
-      fitToPage: true,
-      fitToWidth: 1,
-      fitToHeight: 1,
-      horizontalCentered: true,
-      verticalCentered: false,
-      margins: { left: 0.2, right: 0.2, top: 0.25, bottom: 0.25, header: 0.1, footer: 0.1 },
-      printArea: "A1:E22"
-    },
-    views: [{ showGridLines: false }]
-  });
-
-  sheet.columns = [
-    { key: "bil", width: 8 },
-    { key: "bulan", width: 28 },
-    { key: "disemak", width: 32 },
-    { key: "tandatangan", width: 42 },
-    { key: "ulasan", width: 42 }
-  ];
-
-  [1, 2, 3, 4].forEach((row) => {
-    sheet.getRow(row).height = 18;
-  });
-  sheet.getRow(5).height = 22;
-  sheet.getRow(6).height = 28;
-  sheet.getRow(8).height = 30;
-  sheet.getRow(10).height = 42;
-  for (let row = 11; row <= 22; row += 1) {
-    sheet.getRow(row).height = 38;
-  }
-
-  mergeAndStyle(sheet, "E2:E2", "Lampiran 8", {
-    font: { name: "Arial", size: 11, bold: true },
-    alignment: { horizontal: "right", vertical: "middle" }
-  });
-  mergeAndStyle(sheet, "E4:E4", "(kepada SA KPKR Bil 3/2017)", {
-    font: { name: "Arial", size: 11 },
-    alignment: { horizontal: "right", vertical: "middle" }
-  });
-  mergeAndStyle(sheet, "A5:E5", "PENGESAHAN DAN SEMAKAN BULANAN", {
-    font: { name: "Arial", size: 14, bold: true },
-    alignment: centerMiddle(),
-    fill: solidFill("FFD9EFD2"),
-    border: boxBorder("medium")
-  });
-
-  mergeAndStyle(sheet, "A6:B6", `JENIS KENDERAAN: ${fieldValue(info.vehicleType, "XXX")}`, confirmationInfoStyle());
-  mergeAndStyle(sheet, "C6:E6", `NO.PENDAFTARAN KENDERAAN: ${fieldValue(info.vehicleRegistration, "XXX")}`, confirmationInfoStyle());
-  mergeAndStyle(sheet, "A8:B8", `PEGAWAI YANG BERTANGGUNGJAWAB : ${fieldValue(info.responsibleOfficer, "\"NAMA PENUH PENYELIA\"")}`, confirmationInfoStyle());
-  mergeAndStyle(sheet, "C8:E8", `NAMA PEJABAT: ${fieldValue(info.officeName, "CAWANGAN KEJURUTERAAN AWAM DAN STRUKTUR")}`, confirmationInfoStyle());
-
-  const headers = ["Bil.", "Bulan / Tahun", "Disemak Oleh", "Tandatangan & Cop", "Ulasan / Catatan"];
-  headers.forEach((header, index) => {
-    const cell = sheet.getCell(10, index + 1);
-    cell.value = header;
-    cell.font = { name: "Arial", size: 11, bold: true };
-    cell.alignment = centerMiddle();
-    cell.fill = solidFill("FFD9D9D9");
-    cell.border = boxBorder("medium");
-  });
-
-  CONFIRMATION_MONTHS.forEach((month, index) => {
-    const rowNumber = 11 + index;
-    const row = sheet.getRow(rowNumber);
-    row.getCell(1).value = index + 1;
-    row.getCell(2).value = `${month} / ${year}`;
-    for (let col = 1; col <= 5; col += 1) {
-      const cell = row.getCell(col);
-      cell.font = { name: "Arial", size: col === 2 ? 12 : 11, bold: col === 2 };
-      cell.alignment = centerMiddle();
-      cell.border = boxBorder("thin");
-    }
-  });
-
-  applyOuterBorder(sheet, 10, 1, 22, 5, "medium");
-}
-
-function buildProjectListWorksheet(workbook) {
-  const sheet = workbook.addWorksheet(PROJECT_EXCEL_SHEET_NAME, {
-    pageSetup: {
-      paperSize: 9,
-      orientation: "landscape",
-      fitToPage: true,
-      fitToWidth: 1,
-      fitToHeight: 0,
-      margins: { left: 0.25, right: 0.25, top: 0.35, bottom: 0.35, header: 0.1, footer: 0.1 }
-    },
-    views: [{ state: "frozen", ySplit: 1, showGridLines: false }]
-  });
-
-  sheet.columns = [
-    { key: "bil", width: 8 },
-    { key: "projectName", width: 68 },
-    { key: "projectCode", width: 20 },
-    { key: "status", width: 16 },
-    { key: "pelaksanaan", width: 32 }
-  ];
-
-  const headerRow = sheet.addRow(PROJECT_EXCEL_HEADERS);
-  headerRow.height = 24;
-  headerRow.eachCell((cell) => {
-    cell.font = { name: "Arial", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
-    cell.fill = solidFill("FF1E6F68");
-    cell.alignment = centerMiddle();
-    cell.border = boxBorder("thin");
-  });
-
-  sortedMasterProjects().forEach((project, index) => {
-    const row = sheet.addRow([
-      index + 1,
-      project.projectName || "",
-      project.projectCode || "",
-      normalizeProjectStatus(project.status),
-      normalizePelaksanaan(project.pelaksanaan)
-    ]);
-    row.height = 22;
-    row.eachCell((cell, colNumber) => {
-      cell.font = { name: "Arial", size: 11 };
-      cell.alignment = { horizontal: colNumber === 2 ? "left" : "center", vertical: "middle", wrapText: true };
-      cell.border = boxBorder("thin");
-    });
-  });
-}
-
-function downloadWorkbookBuffer(buffer, fileName) {
-  const blob = new Blob([buffer], {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-function mergeAndStyle(sheet, range, value, style = {}) {
-  const [start, end] = range.split(":");
-  if (end && end !== start) {
-    sheet.mergeCells(range);
-  }
-  const cell = sheet.getCell(start);
-  cell.value = value;
-  Object.assign(cell, style);
-  return cell;
-}
-
-function centerMiddle() {
-  return { horizontal: "center", vertical: "middle", wrapText: true };
-}
-
-function solidFill(argb) {
-  return { type: "pattern", pattern: "solid", fgColor: { argb } };
-}
-
-function boxBorder(style = "thin") {
-  return {
-    top: { style },
-    left: { style },
-    bottom: { style },
-    right: { style }
-  };
-}
-
-function applyOuterBorder(sheet, topRow, leftCol, bottomRow, rightCol, style = "thin") {
-  for (let row = topRow; row <= bottomRow; row += 1) {
-    for (let col = leftCol; col <= rightCol; col += 1) {
-      const cell = sheet.getCell(row, col);
-      cell.border = {
-        ...cell.border,
-        ...(row === topRow ? { top: { style } } : {}),
-        ...(row === bottomRow ? { bottom: { style } } : {}),
-        ...(col === leftCol ? { left: { style } } : {}),
-        ...(col === rightCol ? { right: { style } } : {})
-      };
-    }
-  }
-}
-
-function coverValue(value, placeholder) {
-  const cleanValue = cleanInput(value);
-  return cleanValue || `"${placeholder}"`;
-}
-
-function fieldValue(value, placeholder) {
-  return cleanInput(value) || placeholder;
-}
-
-function confirmationInfoStyle() {
-  return {
-    font: { name: "Arial", size: 11, bold: true },
-    alignment: { horizontal: "left", vertical: "middle", wrapText: true }
-  };
 }
 
 function parseProjectExcelRows(worksheet) {
@@ -2406,7 +1956,7 @@ function renderShell() {
     files: ["Tracker", "File Tracker"],
     projects: ["Tracker", "Project Tracker"],
     progress: ["Tracker", "Progress Tracker"],
-    team: ["Admin", "Admin"]
+    team: ["Admin", "Team"]
   };
 
   els.viewEyebrow.textContent = labels[state.activeView]?.[0] || "Workspace";
@@ -2763,15 +2313,6 @@ function renderTeamView() {
     <section class="split-layout">
       <div class="panel">
         <div class="section-heading">
-          <p class="eyebrow">Vehicle log</p>
-          <h2>Maklumat Kenderaan Projek</h2>
-        </div>
-        ${renderVehicleProjectInfoForm()}
-        ${renderVehicleInfoSaveNotice()}
-      </div>
-
-      <div class="panel">
-        <div class="section-heading">
           <p class="eyebrow">Access</p>
           <h2>Team accounts</h2>
         </div>
@@ -2811,29 +2352,6 @@ function renderTeamView() {
   `;
 }
 
-function renderVehicleProjectInfoForm() {
-  const info = normalizeVehicleProjectInfo(state.vehicleInfo);
-  const disabled = state.mode === "firebase" && !isAdmin();
-
-  return `
-    <form class="form-grid compact" id="vehicleProjectInfoForm" novalidate>
-      <label>Nama Projek<input name="projectName" value="${escapeAttribute(info.projectName)}" placeholder="Nama projek untuk Muka Depan" ${disabled ? "disabled" : ""} /></label>
-      <label>No. Kontrak<input name="contractNo" value="${escapeAttribute(info.contractNo)}" placeholder="No. kontrak" ${disabled ? "disabled" : ""} /></label>
-      <label>Kontraktor<input name="contractor" value="${escapeAttribute(info.contractor)}" placeholder="Nama kontraktor" ${disabled ? "disabled" : ""} /></label>
-      <label>Nama Pemandu dan No. (H/P)<input name="driverNamePhone" value="${escapeAttribute(info.driverNamePhone)}" placeholder="Nama pemandu dan no. telefon" ${disabled ? "disabled" : ""} /></label>
-      <label>No. Pendaftaran Kenderaan<input name="vehicleRegistration" value="${escapeAttribute(info.vehicleRegistration)}" placeholder="No. kenderaan" ${disabled ? "disabled" : ""} /></label>
-      <label>Jenis Kenderaan<input name="vehicleType" value="${escapeAttribute(info.vehicleType)}" placeholder="Jenis kenderaan" ${disabled ? "disabled" : ""} /></label>
-      <label>Pegawai Bertanggungjawab<input name="responsibleOfficer" value="${escapeAttribute(info.responsibleOfficer)}" placeholder="Nama penuh penyelia" ${disabled ? "disabled" : ""} /></label>
-      <label>Nama Pejabat<input name="officeName" value="${escapeAttribute(info.officeName)}" placeholder="Nama pejabat" ${disabled ? "disabled" : ""} /></label>
-      <label>Tahun Pengesahan<input name="reviewYear" type="number" min="2000" max="2100" value="${escapeAttribute(info.reviewYear)}" ${disabled ? "disabled" : ""} /></label>
-      <button class="primary-button" type="button" data-action="save-vehicle-info" ${disabled ? "disabled" : ""}>
-        <i data-lucide="save"></i>
-        <span>Simpan maklumat</span>
-      </button>
-    </form>
-  `;
-}
-
 function renderMasterProjectForm() {
   const disabled = state.mode === "firebase" && !isAdmin();
   return `
@@ -2850,11 +2368,11 @@ function renderMasterProjectForm() {
       <div class="button-row project-excel-actions full-span">
         <button class="secondary-button" type="button" data-action="download-project-excel">
           <i data-lucide="download"></i>
-          <span>Muat Turun Excel</span>
+          <span>Download Excel</span>
         </button>
         <button class="secondary-button" type="button" data-action="choose-project-excel" ${disabled ? "disabled" : ""}>
           <i data-lucide="upload"></i>
-          <span>Muat Naik Excel</span>
+          <span>Upload Excel</span>
         </button>
         <input
           class="visually-hidden"
@@ -3616,8 +3134,7 @@ function persistLocal() {
     JSON.stringify({
       masterProjects: state.masterProjects,
       items: state.items,
-      users: state.users,
-      vehicleInfo: state.vehicleInfo
+      users: state.users
     })
   );
 }
@@ -3690,40 +3207,6 @@ function normalizeMasterProject(project) {
     status: normalizeProjectStatus(projectData?.status),
     pelaksanaan: normalizePelaksanaan(projectData?.pelaksanaan)
   };
-}
-
-function isVehicleProjectInfoRecord(record) {
-  return record?.id === VEHICLE_INFO_DOC_ID || record?.type === VEHICLE_INFO_TYPE;
-}
-
-function normalizeVehicleProjectInfo(info) {
-  const infoData = info || {};
-  return {
-    ...VEHICLE_INFO_DEFAULTS,
-    id: VEHICLE_INFO_DOC_ID,
-    type: VEHICLE_INFO_TYPE,
-    projectName: cleanInput(infoData.projectName),
-    contractNo: cleanInput(infoData.contractNo),
-    contractor: cleanInput(infoData.contractor),
-    driverNamePhone: cleanInput(infoData.driverNamePhone),
-    vehicleRegistration: cleanInput(infoData.vehicleRegistration),
-    vehicleType: cleanInput(infoData.vehicleType),
-    responsibleOfficer: cleanInput(infoData.responsibleOfficer),
-    officeName: cleanInput(infoData.officeName) || VEHICLE_INFO_DEFAULTS.officeName,
-    reviewYear: normalizeReviewYear(infoData.reviewYear),
-    updatedAt: infoData.updatedAt || "",
-    updatedBy: cleanInput(infoData.updatedBy),
-    updatedByUid: cleanInput(infoData.updatedByUid)
-  };
-}
-
-function normalizeReviewYear(value) {
-  const year = Number.parseInt(cleanInput(value), 10);
-  if (Number.isInteger(year) && year >= 2000 && year <= 2100) {
-    return String(year);
-  }
-
-  return VEHICLE_INFO_DEFAULTS.reviewYear;
 }
 
 function normalizeTrackerItem(item) {
