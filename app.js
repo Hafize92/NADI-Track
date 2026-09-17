@@ -286,13 +286,15 @@ async function ensureUserProfile(user) {
   const userRef = state.sdk.doc(state.db, "users", user.uid);
   const userSnapshot = await state.sdk.getDoc(userRef);
   const configuredAdmin = isConfiguredAdminUser(user);
+  const configuredColleague = isConfiguredColleagueUser(user);
 
   if (userSnapshot.exists()) {
     const profileData = normalizeFirebaseData(userSnapshot.data());
     state.profile = {
       id: user.uid,
       ...profileData,
-      ...(configuredAdmin ? { role: "admin", status: "active" } : {})
+      ...(configuredAdmin ? { role: "admin", status: "active" } : {}),
+      ...(!configuredAdmin && configuredColleague ? { role: "colleague", status: "active" } : {})
     };
     const profileUpdate = configuredAdmin
       ? {
@@ -300,6 +302,12 @@ async function ensureUserProfile(user) {
           status: "active",
           lastSeenAt: state.sdk.serverTimestamp()
         }
+      : configuredColleague
+        ? {
+            role: "colleague",
+            status: "active",
+            lastSeenAt: state.sdk.serverTimestamp()
+          }
       : {
           lastSeenAt: state.sdk.serverTimestamp()
         };
@@ -3157,6 +3165,14 @@ function getAdminEmails() {
     : [];
 }
 
+function getColleagueEmails() {
+  return Array.isArray(window.HAFIZE_COLLEAGUE_EMAILS)
+    ? window.HAFIZE_COLLEAGUE_EMAILS.map((email) => String(email).trim().toLowerCase()).filter(
+        (email) => email && !email.includes("example.com")
+      )
+    : [];
+}
+
 function projectDocumentId(project) {
   return (
     String(project?.projectCode || project?.projectName || "")
@@ -3549,6 +3565,11 @@ function safeJsonParse(value, fallback) {
 function isConfiguredAdminUser(user = state.user) {
   const email = String(user?.email || state.profile?.email || "").trim().toLowerCase();
   return Boolean(email && getAdminEmails().includes(email));
+}
+
+function isConfiguredColleagueUser(user = state.user) {
+  const email = String(user?.email || state.profile?.email || "").trim().toLowerCase();
+  return Boolean(email && getColleagueEmails().includes(email));
 }
 
 function isAdmin() {
