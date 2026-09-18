@@ -66,7 +66,7 @@ Publish `firebase.rules` in Firebase Console > Firestore Database > Rules. The r
 - `role`: `admin`
 - `status`: `active`
 
-For a fresh Firebase database, sign in once, then set your own `users/{uid}` document to `role = admin` and `status = active` in Firestore Data before inviting colleagues. Later users sign up as `colleague`; the admin can change roles and pause accounts in the Team page.
+For a fresh Firebase database, sign in once, then set your own `users/{uid}` document to `role = admin` and `status = active` in Firestore Data before inviting colleagues. Later users sign up as `colleague`. Active admins and colleagues can add and edit project/tracker records. Only admins can delete records, change roles, and pause accounts in the Team page.
 
 If a Firebase API key or admin email was ever committed publicly, rotate or restrict the key in Google Cloud API credentials and republish the sanitized Git history.
 
