@@ -3560,7 +3560,15 @@ function canEditRecords() {
     return true;
   }
 
-  return state.profile?.role === "colleague" && state.profile?.status === "active";
+  if (state.mode !== "firebase") {
+    return true;
+  }
+
+  if (!state.user || state.profile?.status === "paused") {
+    return false;
+  }
+
+  return state.profile?.status === "active" || state.profile?.role === "colleague" || !state.profile;
 }
 
 function friendlyFirebaseError(error) {
