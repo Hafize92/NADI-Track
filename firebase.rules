@@ -39,7 +39,8 @@ service cloud.firestore {
 
     match /masterProjects/{projectId} {
       allow read: if isActiveUser() || isAdmin();
-      allow create, update, delete: if isAdmin();
+      allow create, update: if isActiveUser() || isAdmin();
+      allow delete: if isAdmin();
     }
 
     match /trackerItems/{itemId} {

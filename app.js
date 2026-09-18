@@ -698,8 +698,8 @@ async function saveMasterProject(form) {
   });
 
   if (state.mode === "firebase" && state.db) {
-    if (!isAdmin()) {
-      setSync("Admin profile needed", "error");
+    if (!canEditRecords()) {
+      setSync("Active account needed", "error");
       return;
     }
 
@@ -809,12 +809,12 @@ function downloadProjectExcel() {
 }
 
 function chooseProjectExcelFile() {
-  if (!isAdmin()) {
+  if (!canEditRecords()) {
     state.lastProjectSave = {
       tone: "error",
-      message: "Only admin can upload project Excel."
+      message: "Only active team members can upload project Excel."
     };
-    setSync("Admin only", "error");
+    setSync("Active account needed", "error");
     renderShell();
     return;
   }
@@ -834,12 +834,12 @@ async function importProjectExcel(input) {
     return;
   }
 
-  if (!isAdmin()) {
+  if (!canEditRecords()) {
     state.lastProjectSave = {
       tone: "error",
-      message: "Only admin can upload project Excel."
+      message: "Only active team members can upload project Excel."
     };
-    setSync("Admin only", "error");
+    setSync("Active account needed", "error");
     input.value = "";
     renderShell();
     return;
@@ -1030,8 +1030,8 @@ async function saveImportedMasterProjects(projects) {
   );
 
   if (state.mode === "firebase" && state.db) {
-    if (!isAdmin()) {
-      throw new Error("Only admin can upload project Excel.");
+    if (!canEditRecords()) {
+      throw new Error("Only active team members can upload project Excel.");
     }
 
     for (let index = 0; index < savedProjects.length; index += 450) {
@@ -1333,7 +1333,7 @@ async function touchMasterProject(projectId) {
       : entry
   );
 
-  if (state.mode === "firebase" && state.db && isAdmin()) {
+  if (state.mode === "firebase" && state.db && canEditRecords()) {
     try {
       await state.sdk.updateDoc(state.sdk.doc(state.db, "masterProjects", project.id), {
         updatedAt: state.sdk.serverTimestamp(),
@@ -2353,7 +2353,7 @@ function renderTeamView() {
 }
 
 function renderMasterProjectForm() {
-  const disabled = state.mode === "firebase" && !isAdmin();
+  const disabled = state.mode === "firebase" && !canEditRecords();
   return `
     <form class="form-grid" id="masterProjectForm" novalidate>
       <input type="hidden" name="id" />
@@ -2457,7 +2457,7 @@ function renderMasterProjectTable(projects) {
             <th>Status</th>
             <th>Pelaksanaan</th>
             <th>Updated</th>
-            ${isAdmin() ? `<th class="actions-column">Actions</th>` : ""}
+            ${canEditRecords() ? `<th class="actions-column">Actions</th>` : ""}
           </tr>
         </thead>
         <tbody>
@@ -2479,15 +2479,15 @@ function renderMasterProjectRow(project) {
       <td data-label="Pelaksanaan">${escapeHtml(project.pelaksanaan || "Konvensional Dalaman")}</td>
       <td data-label="Updated">${formatDate(projectLastUpdatedAt(project))}</td>
       ${
-        isAdmin()
+        canEditRecords()
           ? `<td data-label="Actions">
               <div class="row-actions">
                 <button class="icon-button" type="button" title="Edit" data-action="edit-master-project" data-id="${project.id}">
                   <i data-lucide="pencil"></i>
                 </button>
-                <button class="icon-button danger" type="button" title="Delete" data-action="delete-master-project" data-id="${project.id}">
+                ${isAdmin() ? `<button class="icon-button danger" type="button" title="Delete" data-action="delete-master-project" data-id="${project.id}">
                   <i data-lucide="trash-2"></i>
-                </button>
+                </button>` : ""}
               </div>
             </td>`
           : ""
@@ -2705,7 +2705,7 @@ function renderFileTable(items) {
             <th>Jilid</th>
             <th>Location</th>
             <th>Updated</th>
-            ${isAdmin() ? `<th class="actions-column">Actions</th>` : ""}
+            ${canEditRecords() ? `<th class="actions-column">Actions</th>` : ""}
           </tr>
         </thead>
         <tbody>
@@ -2732,15 +2732,15 @@ function renderFileRow(item) {
       <td data-label="Location" class="location-cell">${location}</td>
       <td data-label="Updated">${formatDate(item.updatedAt)}</td>
       ${
-        isAdmin()
+        canEditRecords()
           ? `<td data-label="Actions">
               <div class="row-actions">
                 <button class="icon-button" type="button" title="Edit" data-action="edit-item" data-id="${item.id}">
                   <i data-lucide="pencil"></i>
                 </button>
-                <button class="icon-button danger" type="button" title="Delete" data-action="delete-item" data-id="${item.id}">
+                ${isAdmin() ? `<button class="icon-button danger" type="button" title="Delete" data-action="delete-item" data-id="${item.id}">
                   <i data-lucide="trash-2"></i>
-                </button>
+                </button>` : ""}
               </div>
             </td>`
           : ""
@@ -2813,14 +2813,14 @@ function renderTrackingCard(item, type) {
       </div>
       ${item.notes ? `<p class="notes">${escapeHtml(item.notes)}</p>` : ""}
       ${
-        isAdmin()
+        canEditRecords()
           ? `<div class="card-actions">
               <button class="icon-button" type="button" title="Edit" data-action="edit-item" data-id="${item.id}">
                 <i data-lucide="pencil"></i>
               </button>
-              <button class="icon-button danger" type="button" title="Delete" data-action="delete-item" data-id="${item.id}">
+              ${isAdmin() ? `<button class="icon-button danger" type="button" title="Delete" data-action="delete-item" data-id="${item.id}">
                 <i data-lucide="trash-2"></i>
-              </button>
+              </button>` : ""}
             </div>`
           : ""
       }
@@ -3553,6 +3553,14 @@ function isConfiguredAdminUser(user = state.user) {
 
 function isAdmin() {
   return state.profile?.role === "admin" || isConfiguredAdminUser();
+}
+
+function canEditRecords() {
+  if (isAdmin()) {
+    return true;
+  }
+
+  return state.profile?.role === "colleague" && state.profile?.status === "active";
 }
 
 function friendlyFirebaseError(error) {
